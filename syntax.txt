@@ -1,0 +1,16 @@
+
+
+identifier
+    @alpha ?identifierLoop
+identifierLoop
+    @alphanumeric ?identifierLoop
+
+funcDef
+    @identifier ( ?funcArgs ) =
+funcArgs
+    @identifier ?funcAnother
+funcAnother
+    , @funcArgs
+
+main
+    @funcDef
