@@ -136,6 +136,7 @@ const
     alphanum = alpha & digits
     symbols = "!@#$%^&*()_-+=`~<>,.?/:;\"'[]{}\\|"
     whitespace = " \t\n"
+    dotspace = whitespace.remove("\n"[0])  # Called dotspace because it matches regex '.'
 
     shortLiteralChars = alphanum & symbols.remove('\'')
     longLiteralChars = alphanum & whitespace & symbols.remove('"')
@@ -145,6 +146,11 @@ const
 proc consumeWhitespace(code: string): int =
     # Returns the first index with non-whitespace
     while code[result] in whitespace:
+        inc(result)
+
+proc consumeDotspace(code: string): int =
+    # Like consumeWhitespace, but doesn't allow for newlines
+    while code[result] in dotspace:
         inc(result)
 
 proc consumeChar(code: string, c: char): int =
@@ -215,9 +221,14 @@ proc parseIdentifier(code: string): tuple[len: int, val: string] =
 
 proc parseReference_d(code: string): ParseValue =
     let (head, identifier) = parseIdentifier(code)
-    if not definedRules.hasKey(identifier):
-        raise newException(ValueError, "No such rule \"$1\"." % identifier)
-    return (head, definedRules[identifier])
+
+    # Delay acessing the rules dict so that
+    # a rule can be referenced before it's defined.
+    # Reference errors will occur at runtime.
+    proc returnVal(code: string): int =
+        return definedRules[identifier](code)
+
+    return (head, returnVal)
 
 var parseReference = debugWrap(parseReference_d, "REFERENCE")
 
@@ -290,7 +301,7 @@ proc parseSequenceExpr_d(code: string): ParseValue =
     var (head, rule) = parseSimpleExpression(code)
     rules.add(rule)
     while head < code.len:
-        head += code[head ..< code.len].consumeWhitespace()
+        head += code[head ..< code.len].consumeDotspace()  # Allow dotspace between simple expressinos
         var dHead: int
         var rule: Rule
         try:
@@ -386,8 +397,13 @@ proc parseProgram_d(code: string): ParseValue =
 var parseProgram = debugWrap(parseProgram_d, "PROGRAM")
 
 var program = r"""
+
 digit: '0 | '1 | '2 | '3 | '4 | '5 | '6 | '7 | '8 | '9
 string: '" +digit '"
+
+object: '{ *[string ': value] '}
+value: string
+
 """
 
 discard parseProgram(program)
