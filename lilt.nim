@@ -16,7 +16,7 @@ type DidntMatchError = object of Exception
 # in the given string that the Rule matches (0+).
 type Rule = proc(code: string): int
 
-# User-definined rules
+# User-definned rules
 var definedRules = newTable[string, Rule]()
 
 proc createQuestionRule(optional: Rule): Rule =
@@ -29,18 +29,19 @@ proc createQuestionRule(optional: Rule): Rule =
 
 proc createStarRule(repeated: Rule): Rule =
     proc starRule(code: string): int =
-        var index = 0
+        var head = 0
         while true:
             try:
-                index += repeated(code[index ..< code.len])
+                head += repeated(code[head ..< code.len])
             except DidntMatchError:
                 break
-        return index
+        return head
     return starRule
 
 proc createPlusRule(repeated: Rule): Rule =
+    var starRule = createStarRule(repeated)
     proc plusRule(code: string): int =
-        result = createStarRule(repeated)(code)
+        result = starRule(code)
         if result == 0:
             raise newException(DidntMatchError, "Expected at least one repitition of something.")
     return plusRule
@@ -83,12 +84,42 @@ proc createLiteralRule(literal: string): Rule =
 # when parsing did not match
 type ParsingError = object of ValueError
 
-# Parsing functions will return a `parseValue`
+# Parsing functions will return a `ParseValue`
 # which gives the number of characters consumed
 # and the Rule created from it
-type parseValue = tuple[len: int, rule: Rule]
+type ParseValue = tuple[len: int, rule: Rule]
 
-type parserFunction = proc(code: string): parseValue
+type ParserFunction = proc(code: string): ParseValue
+
+## Debug
+
+var debugDepth = 0
+
+proc debug*(str: string) =
+    echo ".\t".repeat(debugDepth) & str
+
+proc pushd*(str: string) =
+    debug(str)
+    inc(debugDepth)
+
+proc popd*(str: string) =
+    dec(debugDepth)
+    debug(str)
+
+proc debugWrap(parser: ParserFunction, name: string): ParserFunction =
+    proc decorated(code: string): ParseValue =
+        pushd("Attemping to parse <$1>" % name)
+        var ret: ParseValue
+        try:
+            ret = parser(code)
+        except ParsingError as e:
+            popd("<$1> failed: $2" % [name, e.msg])
+            raise e
+        popd("<$1> succeeded, consumed [$2]" % [name, code[0 ..< ret.len]])
+        return ret
+    return decorated
+
+## End debug
 
 proc remove(str: string, removed: char): string =
     ## Removes all instances of a character from a string
@@ -122,7 +153,7 @@ proc consumeChar(code: string, c: char): int =
         return 1
     raise newException(ParsingError, "Expected character '$1'." % $c)
 
-proc parseShortLiteral(code: string): parseValue =
+proc parseShortLiteral_d(code: string): ParseValue =
     if code[0] != '\'':
         raise newException(ParsingError, "Short literal must start with an apostrophe.")
     if code[1] notin shortLiteralChars:
@@ -138,7 +169,9 @@ proc parseShortLiteral(code: string): parseValue =
     var resultLiteral = resultLiteralChars.join("")
     return (resultLiteral.len + 1, createLiteralRule(resultLiteral))  # +1 for apostrophe
 
-proc parseLongLiteral(code: string): parseValue =
+var parseShortLiteral = debugWrap(parseShortLiteral_d, "SHORT LITERAL")
+
+proc parseLongLiteral_d(code: string): ParseValue =
     if code[0] != '"':
         raise newException(ParsingError, "Long literal must start with a double quotation mark.")
 
@@ -152,7 +185,9 @@ proc parseLongLiteral(code: string): parseValue =
     var resultLiteral = resultLiteralChars.join("")
     return (resultLiteral.len + 1, createLiteralRule(resultLiteral))
 
-proc parseLiteral(code: string): parseValue =
+var parseLongLiteral = debugWrap(parseLongLiteral_d, "LONG LITERAL")
+
+proc parseLiteral_d(code: string): ParseValue =
     try:
         return parseShortLiteral(code)
     except ParsingError: discard
@@ -163,8 +198,10 @@ proc parseLiteral(code: string): parseValue =
 
     raise newException(ParsingError, "Did not match short nor long literal.")
 
-proc parseExpression(code: string): parseValue
-proc parseSimpleExpression(code: string): parseValue
+var parseLiteral = debugWrap(parseLiteral_d, "LITERAL")
+
+var parseExpression: proc(code: string): ParseValue
+var parseSimpleExpression: proc(code: string): ParseValue
 
 proc parseIdentifier(code: string): tuple[len: int, val: string] =
     # NOTE: Does not return a rule
@@ -176,34 +213,42 @@ proc parseIdentifier(code: string): tuple[len: int, val: string] =
 
     return (head, code[0 ..< head])
 
-proc parseReference(code: string): parseValue =
+proc parseReference_d(code: string): ParseValue =
     let (head, identifier) = parseIdentifier(code)
     if not definedRules.hasKey(identifier):
         raise newException(ValueError, "No such rule \"$1\"." % identifier)
     return (head, definedRules[identifier])
 
-proc parseQuestionExpr(code: string): parseValue =
+var parseReference = debugWrap(parseReference_d, "REFERENCE")
+
+proc parseQuestionExpr_d(code: string): ParseValue =
     if code[0] != '?':
         raise newException(ParsingError, "Question expression must begin with question mark.")
 
-    var (innerRuleLen, innerRule) = parseExpression(code[1 ..< code.len])
+    var (innerRuleLen, innerRule) = parseSimpleExpression(code[1 ..< code.len])
     return (innerRuleLen + 1, createQuestionRule(innerRule))
 
-proc parsePlusExpr(code: string): parseValue =
+var parseQuestionExpr = debugWrap(parseQuestionExpr_d, "QUESTION EXPRESSION")
+
+proc parsePlusExpr_d(code: string): ParseValue =
     if code[0] != '+':
         raise newException(ParsingError, "Plus expression must begin with plus sign.")
 
-    var (innerRuleLen, innerRule) = parseExpression(code[1 ..< code.len])
+    var (innerRuleLen, innerRule) = parseSimpleExpression(code[1 ..< code.len])
     return (innerRuleLen + 1, createPlusRule(innerRule))
 
-proc parseStarExpr(code: string): parseValue =
+var parsePlusExpr = debugWrap(parsePlusExpr_d, "PLUS EXPRESSION")
+
+proc parseStarExpr_d(code: string): ParseValue =
     if code[0] != '*':
         raise newException(ParsingError, "Star expression must begin with star.")
 
-    var (innerRuleLen, innerRule) = parseExpression(code[1 ..< code.len])
+    var (innerRuleLen, innerRule) = parseSimpleExpression(code[1 ..< code.len])
     return (innerRuleLen + 1, createStarRule(innerRule))
 
-proc parseOrExpr(code: string): parseValue =
+var parseStarExpr = debugWrap(parseStarExpr_d, "STAR EXPRESSION")
+
+proc parseOrExpr_d(code: string): ParseValue =
     var innerRules: seq[Rule] = @[]
     var head = 0
     var isFirst = true
@@ -236,7 +281,9 @@ proc parseOrExpr(code: string): parseValue =
 
     return (head, createOrRule(innerRules))
 
-proc parseSequenceExpr(code: string): parseValue =
+var parseOrExpr = debugWrap(parseOrExpr_d, "OPTION EXPRESSION")
+
+proc parseSequenceExpr_d(code: string): ParseValue =
     # Parses a sequence of simple expressions
     var rules: seq[Rule] = @[]
 
@@ -247,7 +294,7 @@ proc parseSequenceExpr(code: string): parseValue =
         var dHead: int
         var rule: Rule
         try:
-            var (dHead, rule) = parseSimpleExpression(code[head ..< code.len])
+            (dHead, rule) = parseSimpleExpression(code[head ..< code.len])
         except ParsingError:
             break
         head += dHead
@@ -258,7 +305,9 @@ proc parseSequenceExpr(code: string): parseValue =
 
     return (head, createSequenceRule(rules))
 
-proc parseBrackets(code: string): parseValue =
+var parseSequenceExpr = debugWrap(parseSequenceExpr_d, "SEQUENCE EXPRESSION")
+
+proc parseBrackets_d(code: string): ParseValue =
     var head = 0
     head += code[head ..< code.len].consumeChar('[')
     head += code[head ..< code.len].consumeWhitespace()  # Space allowed between '[' and expression
@@ -268,17 +317,19 @@ proc parseBrackets(code: string): parseValue =
     head += code[head ..< code.len].consumeChar(']')
     return (head, innerRule)
 
-proc parseSimpleExpression(code: string): parseValue =
+var parseBrackets = debugWrap(parseBrackets_d, "BRACKETS")
+
+proc parseSimpleExpression_d(code: string): ParseValue =
     # A simple expressioin is anything that's an expression,
     # But it may not be an or-expression
-    var options: seq[parserFunction] = @[
+    var options: seq[ParserFunction] = @[
         # Ignore the explicit type casting, IDK why it's needed
-        parserFunction(parseLiteral),
-        parserFunction(parseReference),
-        parserFunction(parseQuestionExpr),
-        parserFunction(parsePlusExpr),
-        parserFunction(parseStarExpr),
-        parserFunction(parseBrackets),
+        ParserFunction(parseLiteral),
+        ParserFunction(parseReference),
+        ParserFunction(parseQuestionExpr),
+        ParserFunction(parsePlusExpr),
+        ParserFunction(parseStarExpr),
+        ParserFunction(parseBrackets),
     ]
 
     for option in options:
@@ -288,11 +339,13 @@ proc parseSimpleExpression(code: string): parseValue =
 
     raise newException(ParsingError, "Expected reference, ?-expr, +-expr, *-expr, literal, or brackets. Matched none.")
 
-proc parseExpression(code: string): parseValue =
+parseSimpleExpression = debugWrap(parseSimpleExpression_d, "SIMPLE EXPRESSION")
+
+proc parseExpression_d(code: string): ParseValue =
     # An expression is either an or-expr or a sequence-expr
-    var options: seq[parserFunction] = @[
-        parserFunction(parseOrExpr),
-        parserFunction(parseSequenceExpr),
+    var options: seq[ParserFunction] = @[
+        ParserFunction(parseOrExpr),
+        ParserFunction(parseSequenceExpr),
     ]
 
     for option in options:
@@ -302,7 +355,9 @@ proc parseExpression(code: string): parseValue =
 
     raise newException(ParsingError, "Expected or-expr or seq-expr.")
 
-proc parseDefinition(code: string): int =
+parseExpression = debugWrap(parseExpression_d, "EXPRESSION")
+
+proc parseDefinition_d(code: string): ParseValue =
     # Returns only amount consumed
     # Mutated global dict
     var (head, identifier) = parseIdentifier(code)
@@ -314,22 +369,26 @@ proc parseDefinition(code: string): int =
     head += dHead
 
     definedRules[identifier] = rule
-    return head
+    return (head, nil)
 
-proc parseProgram(code: string): parseValue =
+var parseDefinition = debugWrap(parseDefinition_d, "DEFINITION")
+
+proc parseProgram_d(code: string): ParseValue =
     # Returns nothing but modifies global dict
     var head = 0  # Loaction in code
     while head < code.len:
         head += code[head ..< code.len].consumeWhitespace()  # Space allowed between definitions
         if head == code.len: break
         if head > code.len: raise newException(Exception, "Shouldn't happen")
-        head += parseDefinition(code[head ..< code.len])
-    return (code.len, nil)  # TODO: Not necessarily code.len
+        head += parseDefinition(code[head ..< code.len]).len
+    return (head, nil)
+
+var parseProgram = debugWrap(parseProgram_d, "PROGRAM")
 
 var program = r"""
-
 digit: '0 | '1 | '2 | '3 | '4 | '5 | '6 | '7 | '8 | '9
-string: '< digit '>
-
+string: '" +digit '"
 """
+
 discard parseProgram(program)
+echo definedRules["string"]("\"374829\"")
