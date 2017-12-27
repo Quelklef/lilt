@@ -17,7 +17,7 @@ type DidntMatchError = object of Exception
 type Rule = proc(code: string): int
 
 # User-definned rules
-var definedRules = newTable[string, Rule]()
+var definedRules = initTable[string, Rule]()
 
 proc createQuestionRule(optional: Rule): Rule =
     proc questionRule(code: string): int =
@@ -93,23 +93,29 @@ type ParserFunction = proc(code: string): ParseValue
 
 ## Debug
 
-var debugDepth = 0
+const debugEnabled = true
+when debugEnabled:
+    var debugDepth = 0
 
-proc debug*(str: string) =
-    echo ".\t".repeat(debugDepth) & str
+    proc debug(str: string) =
+        echo ".\t".repeat(debugDepth) & str
 
-proc pushd*(str: string) =
-    debug(str)
-    inc(debugDepth)
+    proc pushd(str: string) =
+        debug(str)
+        inc(debugDepth)
 
-proc popd*(str: string) =
-    dec(debugDepth)
-    debug(str)
+    proc popd(str: string) =
+        dec(debugDepth)
+        debug(str)
+else:
+    template debug(s: string) = discard
+    template pushd(s: string) = discard
+    template popd(s: string) = discard
 
 proc debugWrap(parser: ParserFunction, name: string): ParserFunction =
     proc decorated(code: string): ParseValue =
-        pushd("Attemping to parse <$1> with [$2]" % [name, code])
-        #pushd("Attempting to parse <$1>" % name)
+        #pushd("Attemping to parse <$1> with [$2]" % [name, code])
+        pushd("Attempting to parse <$1>" % name)
         var ret: ParseValue
         try:
             ret = parser(code)
@@ -122,34 +128,54 @@ proc debugWrap(parser: ParserFunction, name: string): ParserFunction =
 
 ## End debug
 
-proc remove(str: string, removed: char): string =
-    ## Removes all instances of a character from a string
-    result = ""
-    for c in str:
-        if c != removed:
-            result &= c
+proc `|`[K, V](t1: Table[K, V], t2: Table[K, V]): Table[K, V] =
+    ## Combines t1 and t2, favoring t2.
+    ## Returns new TableRef
+    result = initTable[K, V]()
+    for key, value in t1.pairs:
+        result[key] = value
+    for key, value in t2.pairs:
+        result[key] = value
+    return result
 
 const
-    lowers = "abcdefghijklmnopqrstuvwxyz"
-    uppers = lowers.toUpper
-    alpha = lowers & uppers
-    digits = "1234567890"
-    alphanum = alpha & digits
-    symbols = "!@#$%^&*()_-+=`~<>,.?/:;\"'[]{}\\|"
-    whitespace = " \t\n"
-    dotspace = whitespace.remove("\n"[0])  # Called dotspace because it matches regex '.'
+    dotspace = Whitespace - {"\n"[0]}
 
-    shortLiteralChars = alphanum & symbols.remove('\'')
-    identifierChars = alphanum & "_"
+    escapeMarker = '\\'
+    universalEscapes = {
+        '\\': '\\',
+        'n': "\n"[0],
+        't': "\t"[0],
+        'r': "\r"[0],
+        'c': "\c"[0],
+        'l': "\l"[0],
+        'a': "\a"[0],
+        'b': "\b"[0],
+        'e': "\e"[0],
+        # TODO: Deimal and hex
+    }.toTable
 
-    chars = alphanum & symbols & whitespace
+    shortLiteralChars = AllChars - Whitespace - {'\''}
+    shortLiteralEscapes = {
+        '\'': '\''
+    }.toTable | universalEscapes
 
-    setExprChars = chars.remove('>').remove('<')
-    longLiteralChars = chars.remove('"')
+    longLiteralChars = AllChars - {'"'}
+    longLiteralEscapes = {
+        '"': '"'
+    }.toTable | universalEscapes
+
+    identifierChars = Letters + Digits + {'_'}
+
+    setExprChars = AllChars - {'<', '>'}
+    setExprEscapes = {
+        '<': '<',
+        '>': '>'
+    }.toTable | universalEscapes
 
 proc consumeWhitespace(code: string): int =
     # Returns the first index with non-whitespace
-    while code[result] in whitespace:
+    while code[result] in Whitespace:
         inc(result)
 
 proc consumeDotspace(code: string): int =
@@ -163,37 +189,58 @@ proc consumeChar(code: string, c: char): int =
         return 1
     raise newException(ParsingError, "Expected character '$1'." % $c)
 
-proc parseShortLiteral_d(code: string): ParseValue =
-    if code[0] != '\'':
-        raise newException(ParsingError, "Short literal must start with an apostrophe.")
-    if code[1] notin shortLiteralChars:
-        raise newException(ParsingError, "Short literal must contain one or more characters. Cannot be sole apostrophe.")
+proc consumeCharSet(code: string, charset: set[char], escaped: Table): (int, string) =
+    # Useful helper function for Short Literal, Long Literal, and Set Expression
+    # Consumes code in charset, and maps escaped characters in escaped
+    # Consumes 0 or more characters. Fails if given an invalid escape char
+    # Returns both the parsed charset (as string), taking into account escape codes,
+    # and the number of characters consumed from the code.
+    # Note that this number is the same as the string's length and is technically redundant
+    var resultSet: seq[char] = @[]
+    var consumeEscaped = false
 
-    var resultLiteralChars: seq[char] = @[]
-    for c in code[1 ..< code.len]:  # Ignore apostrophe
-        if c in shortLiteralChars:
-            resultLiteralChars.add(c)
+    var head = -1  # Not a loop variable so that it can be in outer scope
+    for c in code:
+        inc(head)
+
+        if consumeEscaped:
+            if escaped.hasKey(c):
+                resultSet.add(escaped[c])
+                consumeEscaped = false
+            else:
+                raise newException(ParsingError, "Invalid escape char '$1'." % $c)
         else:
-            break
+            if c == escapeMarker:
+                consumeEscaped = true
+            elif c in charset:
+                resultSet.add(c)
+            else:
+                break
 
-    var resultLiteral = resultLiteralChars.join("")
-    return (resultLiteral.len + 1, createLiteralRule(resultLiteral))  # +1 for apostrophe
+    return (head, resultSet.join(""))
+
+proc parseShortLiteral_d(code: string): ParseValue =
+    var head = 0
+    head += code[head ..< code.len].consumeChar('\'')
+
+    var (dHead, resultLiteral) = code[head ..< code.len].consumeCharSet(shortLiteralChars, shortLiteralEscapes)
+    head += dHead
+
+    if resultLiteral == "":
+        raise newException(ParsingError, "Short literal must contain one or more chars after apostrophe.")
+
+    return (head, createLiteralRule(resultLiteral))
 
 var parseShortLiteral = debugWrap(parseShortLiteral_d, "SHORT LITERAL")
 
 proc parseLongLiteral_d(code: string): ParseValue =
-    if code[0] != '"':
-        raise newException(ParsingError, "Long literal must start with a double quotation mark.")
+    var head = 0
+    head += code[head ..< code.len].consumeChar('"')
 
-    var resultLiteralChars: seq[char] = @[]
-    for c in code[1 ..< code.len]:
-        if c in longLiteralChars:
-            resultLiteralChars.add(c)
-        else:
-            break
+    var (dHead, resultLiteral) = code[head ..< code.len].consumeCharSet(longLiteralChars, longLiteralEscapes)
+    head += dHead
 
-    var resultLiteral = resultLiteralChars.join("")
-    return (resultLiteral.len + 1, createLiteralRule(resultLiteral))
+    return (head, createLiteralRule(resultLiteral))
 
 var parseLongLiteral = debugWrap(parseLongLiteral_d, "LONG LITERAL")
 
@@ -203,12 +250,10 @@ proc parseSetExpr_d(code: string): ParseValue =
     ## For instance, '<abc>' matches single 'a', single 'b', or single 'c'
     ### '<abc>' is the same as " 'a | 'b | 'c "
     var head = 0
-    head += code.consumeChar('<')
+    head += code[head ..< code.len].consumeChar('<')
 
-    var resultSetChars: seq[char] = @[]
-    while code[head] in setExprChars:
-        resultSetChars.add(code[head])
-        inc(head)
+    var (dHead, resultSetChars) = code[head ..< code.len].consumeCharSet(setExprChars, setExprEscapes)
+    head += dHead
 
     head += code[head ..< code.len].consumeChar('>')
 
@@ -427,7 +472,7 @@ values: value ?[*ws ', *ws values]
 value: string | number | object | array | 'true | 'false | 'null
 
 string: '" *strChar '"
-strChar: <abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 >
+strChar: <abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 \<\>'>
 
 nonZero: <123456789>
 digit: <1234567890>
@@ -453,7 +498,7 @@ echo parseSimpleExpression("prog").rule("""
                 { "id": "1001", "type": "Regular" },
                 { "id": "1002", "type": "Chocolate" },
                 { "id": "1003", "type": "Blueberry" },
-                { "id": "1004", "type": "Banana" }
+                { "id": "1004", "type": "Devil's Food" }
             ]
         },
         "topping": [
