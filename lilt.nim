@@ -108,7 +108,8 @@ proc popd*(str: string) =
 
 proc debugWrap(parser: ParserFunction, name: string): ParserFunction =
     proc decorated(code: string): ParseValue =
-        pushd("Attemping to parse <$1>" % name)
+        pushd("Attemping to parse <$1> with [$2]" % [name, code])
+        #pushd("Attempting to parse <$1>" % name)
         var ret: ParseValue
         try:
             ret = parser(code)
@@ -139,9 +140,12 @@ const
     dotspace = whitespace.remove("\n"[0])  # Called dotspace because it matches regex '.'
 
     shortLiteralChars = alphanum & symbols.remove('\'')
-    longLiteralChars = alphanum & whitespace & symbols.remove('"')
-
     identifierChars = alphanum & "_"
+
+    chars = alphanum & symbols & whitespace
+
+    setExprChars = chars.remove('>').remove('<')
+    longLiteralChars = chars.remove('"')
 
 proc consumeWhitespace(code: string): int =
     # Returns the first index with non-whitespace
@@ -193,18 +197,29 @@ proc parseLongLiteral_d(code: string): ParseValue =
 
 var parseLongLiteral = debugWrap(parseLongLiteral_d, "LONG LITERAL")
 
-proc parseLiteral_d(code: string): ParseValue =
-    try:
-        return parseShortLiteral(code)
-    except ParsingError: discard
+proc parseSetExpr_d(code: string): ParseValue =
+    ## A set is a sequence of characters surrounded by <>.
+    ## It matches any single character in the set.
+    ## For instance, '<abc>' matches single 'a', single 'b', or single 'c'
+    ### '<abc>' is the same as " 'a | 'b | 'c "
+    var head = 0
+    head += code.consumeChar('<')
 
-    try:
-        return parseLongLiteral(code)
-    except ParsingError: discard
+    var resultSetChars: seq[char] = @[]
+    while code[head] in setExprChars:
+        resultSetChars.add(code[head])
+        inc(head)
 
-    raise newException(ParsingError, "Did not match short nor long literal.")
+    head += code[head ..< code.len].consumeChar('>')
 
-var parseLiteral = debugWrap(parseLiteral_d, "LITERAL")
+    proc resultantRule(text: string): int =
+        if text[0] in resultSetChars:
+            return 1
+        raise newException(DidntMatchError, "'$1' is not in set $2" % [$text[0], $resultSetChars])
+
+    return (head, resultantRule)
+
+var parseSetExpr = debugWrap(parseSetExpr_d, "SET EXPRESSION")
 
 var parseExpression: proc(code: string): ParseValue
 var parseSimpleExpression: proc(code: string): ParseValue
@@ -335,12 +350,14 @@ proc parseSimpleExpression_d(code: string): ParseValue =
     # But it may not be an or-expression
     var options: seq[ParserFunction] = @[
         # Ignore the explicit type casting, IDK why it's needed
-        ParserFunction(parseLiteral),
-        ParserFunction(parseReference),
-        ParserFunction(parseQuestionExpr),
-        ParserFunction(parsePlusExpr),
-        ParserFunction(parseStarExpr),
-        ParserFunction(parseBrackets),
+        parseShortLiteral,
+        parseLongLiteral,
+        parseSetExpr,
+        parseReference,
+        parseQuestionExpr,
+        parsePlusExpr,
+        parseStarExpr,
+        parseBrackets,
     ]
 
     for option in options:
@@ -355,8 +372,8 @@ parseSimpleExpression = debugWrap(parseSimpleExpression_d, "SIMPLE EXPRESSION")
 proc parseExpression_d(code: string): ParseValue =
     # An expression is either an or-expr or a sequence-expr
     var options: seq[ParserFunction] = @[
-        ParserFunction(parseOrExpr),
-        ParserFunction(parseSequenceExpr),
+        parseOrExpr,
+        parseSequenceExpr,
     ]
 
     for option in options:
@@ -396,15 +413,94 @@ proc parseProgram_d(code: string): ParseValue =
 
 var parseProgram = debugWrap(parseProgram_d, "PROGRAM")
 
-var program = r"""
+var program = """
 
-digit: '0 | '1 | '2 | '3 | '4 | '5 | '6 | '7 | '8 | '9
-string: '" +digit '"
+ws: < > | <
+>
 
-object: '{ *[string ': value] '}
-value: string
+object: '{ *ws *members *ws '}
+members: string *ws ': *ws value ?[*ws ', *ws members]
+
+array: '[ *ws *values *ws ']
+values: value ?[*ws ', *ws values]
+
+value: string | number | object | array | 'true | 'false | 'null
+
+string: '" *strChar '"
+strChar: <abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 >
+
+nonZero: <123456789>
+digit: <1234567890>
+number: ?'- ['0 | [nonZero *digit]] ?['. +digit] ?[['e | 'E ] ?['+ | '- ] +digit]
+
+prog: *ws array *ws
 
 """
 
 discard parseProgram(program)
-echo definedRules["string"]("\"374829\"")
+echo parseSimpleExpression("ws").rule("   ")
+echo parseSimpleExpression("string").rule("\"abb\"")
+echo parseSimpleExpression("prog").rule("""
+[
+    {
+        "id": "0001",
+        "type": "donut",
+        "name": "Cake",
+        "ppu": 0.55,
+        "batters": {
+            "batter":
+            [
+                { "id": "1001", "type": "Regular" },
+                { "id": "1002", "type": "Chocolate" },
+                { "id": "1003", "type": "Blueberry" },
+                { "id": "1004", "type": "Banana" }
+            ]
+        },
+        "topping": [
+            { "id": "5001", "type": "None" },
+            { "id": "5002", "type": "Glazed" },
+            { "id": "5005", "type": "Sugar" },
+            { "id": "5007", "type": "Powdered Sugar" },
+            { "id": "5006", "type": "Chocolate with Sprinkles" },
+            { "id": "5003", "type": "Chocolate" },
+            { "id": "5004", "type": "Maple" }
+        ]
+    },
+    {
+        "id": "0002",
+        "type": "donut",
+        "name": "Raised",
+        "ppu": 0.55,
+        "batters": {
+            "batter": [
+                { "id": "1001", "type": "Regular" }
+            ]
+        },
+        "topping": [
+            { "id": "5001", "type": "None" },
+            { "id": "5002", "type": "Glazed" },
+            { "id": "5005", "type": "Sugar" },
+            { "id": "5003", "type": "Chocolate" },
+            { "id": "5004", "type": "Maple" }
+        ]
+    },
+    {
+        "id": "0003",
+        "type": "donut",
+        "name": "Old Fashioned",
+        "ppu": 0.55,
+        "batters": {
+            "batter": [
+                { "id": "1001", "type": "Regular" },
+                { "id": "1002", "type": "Chocolate" }
+            ]
+        },
+        "topping": [
+            { "id": "5001", "type": "None" },
+            { "id": "5002", "type": "Glazed" },
+            { "id": "5003", "type": "Chocolate" },
+            { "id": "5004", "type": "Maple" }
+        ]
+    }
+]
+""")
