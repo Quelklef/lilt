@@ -116,18 +116,16 @@ notWhitespace: !whitespace anychar
 (slightly incomplete) JSON in Lilt:
 
 ```
-ws: < \n\t>
+object: '{ _ *members _ '}
+members: string _ ': _ value ?[_ ', _ members]
 
-object: '{ *ws *members *ws '}
-members: string *ws ': *ws value ?[*ws ', *ws members]
-
-array: '[ *ws *values *ws ']
-values: value ?[*ws ', *ws values]
+array: '[ _ *values _ ']
+values: value ?[_ ', _ values]
 
 value: string | number | object | array | 'true | 'false | 'null
 
 string: '" *strChar '"
-strChar: <abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 \<\>'>
+strChar: !<"\n> anything
 
 nonZero: <123456789>
 digit: <1234567890>
