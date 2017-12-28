@@ -112,19 +112,23 @@ else:
     template pushd(s: string) = discard
     template popd(s: string) = discard
 
-proc debugWrap(parser: ParserFunction, name: string): ParserFunction =
-    proc decorated(code: string): ParseValue =
-        #pushd("Attemping to parse <$1> with [$2]" % [name, code])
-        pushd("Attempting to parse <$1>" % name)
-        var ret: ParseValue
-        try:
-            ret = parser(code)
-        except ParsingError as e:
-            popd("<$1> failed: $2" % [name, e.msg])
-            raise e
-        popd("<$1> succeeded, consumed [$2]" % [name, code[0 ..< ret.len]])
-        return ret
-    return decorated
+when debugEnabled:
+    proc debugWrap(parser: ParserFunction, name: string): ParserFunction =
+        proc decorated(code: string): ParseValue =
+            #pushd("Attemping to parse <$1> with [$2]" % [name, code])
+            pushd("Attempting to parse <$1>" % name)
+            var ret: ParseValue
+            try:
+                ret = parser(code)
+            except ParsingError as e:
+                popd("<$1> failed: $2" % [name, e.msg])
+                raise e
+            popd("<$1> succeeded, consumed [$2]" % [name, code[0 ..< ret.len]])
+            return ret
+        return decorated
+else:
+    template debugWrap(parser: ParserFunction, name: string): ParserFunction =
+        parser
 
 ## End debug
 
@@ -139,38 +143,38 @@ proc `|`[K, V](t1: Table[K, V], t2: Table[K, V]): Table[K, V] =
     return result
 
 const
-    dotspace = Whitespace - {"\n"[0]}
+    dotspace = Whitespace - {'\r', '\l'}
 
     escapeMarker = '\\'
     universalEscapes = {
-        '\\': '\\',
-        'n': "\n"[0],
-        't': "\t"[0],
-        'r': "\r"[0],
-        'c': "\c"[0],
-        'l': "\l"[0],
-        'a': "\a"[0],
-        'b': "\b"[0],
-        'e': "\e"[0],
-        # TODO: Deimal and hex
+        '\\': "\\",
+        'n': "\r\l",
+        't': "\t",
+        'r': "\r",
+        'c': "\c",
+        'l': "\l",
+        'a': "\a",
+        'b': "\b",
+        'e': "\e",
+        # TODO: Decimal and hex
     }.toTable
 
     shortLiteralChars = AllChars - Whitespace - {'\''}
     shortLiteralEscapes = {
-        '\'': '\''
+        '\'': "'"
     }.toTable | universalEscapes
 
     longLiteralChars = AllChars - {'"'}
     longLiteralEscapes = {
-        '"': '"'
+        '"': "\""
     }.toTable | universalEscapes
 
     identifierChars = Letters + Digits + {'_'}
 
     setExprChars = AllChars - {'<', '>'}
     setExprEscapes = {
-        '<': '<',
-        '>': '>'
+        '<': "<",
+        '>': ">"
     }.toTable | universalEscapes
 
 proc consumeWhitespace(code: string): int =
@@ -196,7 +200,7 @@ proc consumeCharSet(code: string, charset: set[char], escaped: Table): (int, str
     # Returns both the parsed charset (as string), taking into account escape codes,
     # and the number of characters consumed from the code.
     # Note that this number is the same as the string's length and is technically redundant
-    var resultSet: seq[char] = @[]
+    var resultSet: seq[string] = @[]
     var consumeEscaped = false
 
     var head = -1  # Not a loop variable so that it can be in outer scope
@@ -205,6 +209,7 @@ proc consumeCharSet(code: string, charset: set[char], escaped: Table): (int, str
 
         if consumeEscaped:
             if escaped.hasKey(c):
+                echo "Parsing escape char [$1] -> [$2]" % [$c, $escaped[c]]
                 resultSet.add(escaped[c])
                 consumeEscaped = false
             else:
@@ -213,7 +218,7 @@ proc consumeCharSet(code: string, charset: set[char], escaped: Table): (int, str
             if c == escapeMarker:
                 consumeEscaped = true
             elif c in charset:
-                resultSet.add(c)
+                resultSet.add($c)
             else:
                 break
 
@@ -460,8 +465,7 @@ var parseProgram = debugWrap(parseProgram_d, "PROGRAM")
 
 var program = """
 
-ws: < > | <
->
+ws: < \n\t>
 
 object: '{ *ws *members *ws '}
 members: string *ws ': *ws value ?[*ws ', *ws members]
