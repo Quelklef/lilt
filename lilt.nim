@@ -395,6 +395,23 @@ proc parseBrackets_d(code: string): ParseValue =
 
 var parseBrackets = debugWrap(parseBrackets_d, "BRACKETS")
 
+proc parseGuardExpr_d(code: string): ParseValue =
+    var head = 0
+    head += code[head ..< code.len].consumeChar('!')
+    var (dHead, rule) = parseSimpleExpression(code[head ..< code.len])
+    head += dHead
+
+    proc guardRule(text: string): int =
+        try:
+            discard rule(text)
+        except DidntMatchError:
+            return 0
+        raise newException(DidntMatchError, "Matched inner rule.")
+
+    return (head, guardRule)
+
+var parseGuardExpr = debugWrap(parseGuardExpr_d, "GUARD EXPRESSION")
+
 proc parseSimpleExpression_d(code: string): ParseValue =
     # A simple expressioin is anything that's an expression,
     # But it may not be an or-expression
@@ -407,6 +424,7 @@ proc parseSimpleExpression_d(code: string): ParseValue =
         parseQuestionExpr,
         parsePlusExpr,
         parseStarExpr,
+        parseGuardExpr,
         parseBrackets,
     ]
 
@@ -463,32 +481,52 @@ proc parseProgram_d(code: string): ParseValue =
 
 var parseProgram = debugWrap(parseProgram_d, "PROGRAM")
 
+# Define some builtins in Nim,
+# and add them
+var specialBuiltins = {
+    "anything": Rule(proc(code: string): int =
+        return 1
+    ),
+    "whitespace": Rule(proc(code: string): int =
+        if code[0] in Whitespace:
+            return 1
+        raise newException(DidntMatchError, "'$1' not whitespace." % $code[0])
+    )
+}.toTable
+definedRules = definedRules | specialBuiltins
+
+# Add unspecial builtins
+discard parseProgram("""
+lower: <abcdefghijklmnopqrstuvwxyz>
+upper: <ABCDEFGHIJKLMNOPQRSTUVWXYZ>
+alpha: lower | upper
+digit: <0123456789>
+alphanum: alpha | digit
+_: *whitespace
+""")
+
 var program = """
 
-ws: < \n\t>
+object: '{ _ *members _ '}
+members: string _ ': _ value ?[_ ', _ members]
 
-object: '{ *ws *members *ws '}
-members: string *ws ': *ws value ?[*ws ', *ws members]
-
-array: '[ *ws *values *ws ']
-values: value ?[*ws ', *ws values]
+array: '[ _ *values _ ']
+values: value ?[_ ', _ values]
 
 value: string | number | object | array | 'true | 'false | 'null
 
 string: '" *strChar '"
-strChar: <abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 \<\>'>
+strChar: !<"\n> anything
 
 nonZero: <123456789>
 digit: <1234567890>
 number: ?'- ['0 | [nonZero *digit]] ?['. +digit] ?[['e | 'E ] ?['+ | '- ] +digit]
 
-prog: *ws array *ws
+prog: _ array _
 
 """
 
 discard parseProgram(program)
-echo parseSimpleExpression("ws").rule("   ")
-echo parseSimpleExpression("string").rule("\"abb\"")
 echo parseSimpleExpression("prog").rule("""
 [
     {
