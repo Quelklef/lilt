@@ -73,3 +73,26 @@ For instance, `"banana phone" <!.>` matches only `banana phone.` and `banana pho
 If rules are separated by pipes (`|`), they will match text that matches _any_ contained rule.
 
 So, `"banana" | "phone"` matches both `banana` and `phone`.
+
+# Example
+
+(slightly incomplete) JSON in Lilt:
+
+```
+ws: < \n\t>
+
+object: '{ *ws *members *ws '}
+members: string *ws ': *ws value ?[*ws ', *ws members]
+
+array: '[ *ws *values *ws ']
+values: value ?[*ws ', *ws values]
+
+value: string | number | object | array | 'true | 'false | 'null
+
+string: '" *strChar '"
+strChar: <abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 \<\>'>
+
+nonZero: <123456789>
+digit: <1234567890>
+number: ?'- ['0 | [nonZero *digit]] ?['. +digit] ?[['e | 'E ] ?['+ | '- ] +digit]
+```
