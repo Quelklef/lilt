@@ -4,6 +4,7 @@
 Lilt is a language for defining syntax (grammar? who knows).
 Currently, it only allows checks if code follows the given syntax.
 It is planned to become a two-in-one syntax definer and parser.
+(Apparently, this is called a compiler-compiler)
 
 ### Rules
 
@@ -125,9 +126,11 @@ values: value ?[_ ', _ values]
 value: string | number | object | array | 'true | 'false | 'null
 
 string: '" *strChar '"
-strChar: !<"\n> anything
+strChar: [!<"\\> anything]
+    | ['\\ <"\\/bfnrt>]
+    | ['\\u hexDigit hexDigit hexDigit hexDigit]
+hexDigit: digit | <abcdefABCDEF>
 
-nonZero: <123456789>
-digit: <1234567890>
+nonZero: !'0 digit
 number: ?'- ['0 | [nonZero *digit]] ?['. +digit] ?[['e | 'E ] ?['+ | '- ] +digit]
 ```
