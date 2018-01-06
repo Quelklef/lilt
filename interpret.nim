@@ -15,7 +15,9 @@ program is mapped to a Nim procedure on a file.
 import tables
 import strutils as su
 
-import ast
+import outer_ast
+import inner_ast
+import verify
 import strfix
 import parse
 
@@ -32,8 +34,6 @@ type RuleError = object of Exception
 
 type LiltContext = TableRef[string, Rule]
 
-type WrongTypeError = object of Exception
-
 const doDebug = true
 when not doDebug:
     template debugWrap(rule: Rule, node: Node): Rule =
@@ -43,7 +43,7 @@ else:
     var debugDepth = 0
 
     proc debugEcho(msg: string) =
-        echo ".    ".repeat(debugDepth) & msg
+        echo ".   ".repeat(debugDepth) & msg
 
     proc debugPush(msg: string) =
         debugEcho(msg)
@@ -53,7 +53,7 @@ else:
         dec(debugDepth)
         debugEcho(msg)
 
-    proc debugWrap(rule: Rule, node: Node): Rule =
+    proc debugWrap(rule: Rule, node: outer_ast.Node): Rule =
         proc wrappedRule(head: int, code: string): int =
             #debugPush("Attempting to match\n$1\nwith:\n$2" % [$node, code[head ..< code.len]])
             debugPush("Attempting to match $1" % $node)
@@ -68,8 +68,10 @@ else:
         return wrappedRule
 
 
-method translate(n: Node, context: LiltContext): Rule {.base.} =
-    raise newException(WrongTypeError, "Cannot translate base Node type.")
+type WrongTypeError = object of Exception
+
+method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
+    raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
 method translate(re: Reference, context: LiltContext): Rule =
     return context[re.id]
@@ -149,8 +151,20 @@ method translate(g: Guard, context: LiltContext): Rule =
             discard innerRule(head, code):
         except RuleError:
             return head
-        raise newException(RuleError, "Code matched inner guard rule.")
+        raise newException(RuleError, "Code matched guard inner rule.")
     return debugWrap(rule, g)
+
+method translate(p: Property, context: LiltContext): Rule =
+    let innerRule = translate(p.inner, context)
+    proc rule(head: int, code: string): int =
+        return innerRule(head, code)
+    return debugWrap(rule, p)
+
+method translate(e: Extension, context: LiltContext): Rule =
+    let innerRule = translate(e.inner, context)
+    proc rule(head: int, code: string): int =
+        return innerRule(head, code)
+    return debugWrap(rule, e)
 
 proc addDefinition(def: Definition, context: LiltContext) =
     ## Add a definition to a context
@@ -174,14 +188,14 @@ builtins["whitespace"] = proc(head: int, code: string): int =
 builtins["lower"] = translate(newSet("abcdefghijklmnopqrstuvwxyz"), builtins)
 builtins["upper"] = translate(newSet("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), builtins)
 builtins["alpha"] = translate(newChoice(@[
-    Node(newReference("lower")),
-    Node(newReference("upper")),
+    outer_ast.Node(newReference("lower")),
+    outer_ast.Node(newReference("upper")),
 ]), builtins)
 
 builtins["digit"] = translate(newSet("0123456789"), builtins)
 builtins["alphanum"] = translate(newChoice(@[
-    Node(newReference("alpha")),
-    Node(newReference("digit")),
+    outer_ast.Node(newReference("alpha")),
+    outer_ast.Node(newReference("digit")),
 ]), builtins)
 
 builtins["_"] = translate(newOptional(newOnePlus(newReference("whitespace"))), builtins)
@@ -194,38 +208,27 @@ method translate(prog: Program): LiltContext {.base.} =
         addDefinition(cast[Definition](definition), context)
     return context
 
-#~# Parsing API #~#
-
-proc readProgram(code: string): Node =
-    ## Different semantics to parseProgram
-    ## Parses a program in full as would be wanted in a simple API
-    var (head, node) = parseProgram(0, code)
-    if head != code.len:
-        raise newException(ParsingError, "Unexpected code at end.")
-    return node
-
 when isMainModule:
-    const code = """
+    const code = r"""
+    object: "{" _ members=?members _ "}"
+    members: &member ?[_ "," _ &members]
+    member: key=string _ ":" _ val=value
 
-    object: '{ _ *members _ '}
-    members: string _ ': _ value ?[_ ', _ members]
+    array: "[" _ values=?values _ "]"
+    values: &value ?[_ "," _ &values]
 
-    array: '[ _ *values _ ']
-    values: value ?[_ ', _ values]
+    value: string | number | object | array | "true" | "false" | "null"
 
-    value: string | number | object | array | 'true | 'false | 'null
-
-    string: '" *strChar '"
+    string: "\"" val=*strChar "\""
     strChar: [!<"\\> anything]
-        | ['\\ <"\\/bfnrt>]
-        | ['\\u hexDigit hexDigit hexDigit hexDigit]
+        | ["\\" <"\\/bfnrt>]
+        | ["\\u" hexDigit hexDigit hexDigit hexDigit]
     hexDigit: digit | <abcdefABCDEF>
 
-    nonZero: !'0 digit
-    number: ?'- ['0 | [nonZero *digit]] ?['. +digit] ?[['e | 'E ] ?['+ | '- ] +digit]
+    nonZero: !"0" digit
+    number: ?"-" ["0" | [nonZero *digit]] ?["." +digit] ?[["e" | "E"] ?["+" | "-"] +digit]
 
-    main: _ array _
-
+    main: _ topArr=array _
     """
 
     const json = """
@@ -245,6 +248,7 @@ when isMainModule:
     ]
     """
 
-    let programAst: Node = readProgram(code)
+    let programAst: outer_ast.Node = parse.parseProgram(code)
+    verify.verify(programAst)
     let res = translate(cast[Program](programAst))
     echo res["main"](0, json)
