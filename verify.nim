@@ -7,14 +7,10 @@ before actually working with it
 import outer_ast
 import sequtils
 import strutils
+from misc import `{}`
 
+# If verification fails
 type InvalidError = object of Exception
-
-proc `{}`[T](s: seq[seq[T]], i: int): seq[T] =
-  ## Returns s[i] || @[]
-  if i >= s.len:
-    return @[]
-  return s[i]
 
 proc verify*(ast: outer_ast.Node) =
   ## Verifies a bunch of things about the ast

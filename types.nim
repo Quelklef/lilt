@@ -6,8 +6,7 @@ import outer_ast
 import sequtils
 import strutils
 import tables
-
-type BaseError = object of Exception
+from misc import `{}`, BaseError
 
 # Used when types are invalid, for instance
 # `*rule` is invalid if `rule` returns rrtCode,
@@ -116,7 +115,7 @@ method inferReturnType(prog: Program, knownReturnTypes: KnownTypeRules) =
 
 proc inferReturnTypes*(ast: Node) =
   let layers = ast.layers
-  let definitionLayer = layers[1]  # TODO: may fail with out of bounds
+  let definitionLayer = layers{1}
 
   var returnTypeTable: KnownTypeRules = initTable[string, outer_ast.RuleReturnType]()
 
@@ -124,7 +123,7 @@ proc inferReturnTypes*(ast: Node) =
   for definition in definitionLayer:
     let contents = definition.descendants
     # Get top-level nodes. These are the ones contained in SEQUENCE/CHOICE contained in DEFINITON
-    let topLevel = definition.layers[2]  # TODO: may fail with out of bounds
+    let topLevel = definition.layers{2}
     var infferedReturnType = rrtTypeless  # rrtTypeless as a substitute for `nil`
 
     for node in topLevel:

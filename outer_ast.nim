@@ -28,6 +28,7 @@ for some reason...
 
 import sequtils
 import strutils
+from misc import BaseError
 
 proc `>$`(s: string, indentText = "\t"): string =
     ## Ident a block of text
@@ -46,10 +47,6 @@ type RuleReturnType* = enum
 type Node* = ref object of RootObj
     returnType*: RuleReturnType  # Defaults to rrtTypeless
     parent*: Node
-
-# To be raised if a method is called on a base
-# type which doesn't implement it
-type BaseError = object of Exception
 
 method `$`*(n: Node): string {.base.} =
     # For some reason this base method needs to be implemented

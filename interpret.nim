@@ -81,17 +81,17 @@ converter toRuleval(retVal: (int, inner_ast.Node)): RuleVal =
             nodeVal: retVal[1],
         )
 
-type Rule = proc(head: int, code: string): RuleVal
-type RuleError = object of Exception
-
-type LiltContext = TableRef[string, Rule]
-
 #[
 Extensions need to be able to add items to a node list
 instead of returning the items.
 ]#
 type CurrentResult = ref object of RootObj
     list: seq[inner_ast.Node]
+
+type Rule = proc(head: int, code: string, currentResult: CurrentResult): RuleVal
+type RuleError = object of Exception
+
+type LiltContext = TableRef[string, Rule]
 
 proc newCurrentResult(): CurrentResult =
     return CurrentResult(list: @[])
@@ -116,12 +116,12 @@ else:
         debugEcho(msg)
 
     proc debugWrap(rule: Rule, node: outer_ast.Node): Rule =
-        proc wrappedRule(head: int, code: string): RuleVal =
+        proc wrappedRule(head: int, code: string, currentResult: CurrentResult): RuleVal =
             #debugPush("Attempting to match\n$1\nwith:\n$2" % [$node, code[head ..< code.len]])
             debugPush("Attempting to match $1" % $node)
             #discard readLine(stdin)
             try:
-                result = rule(head, code)
+                result = rule(head, code, currentResult)
             except RuleError as e:
                 debugPop("Failed: " & e.msg)
                 raise e
@@ -132,16 +132,16 @@ else:
 
 type WrongTypeError = object of Exception
 
-method translate(node: outer_ast.Node, context: LiltContext, currentResult: CurrentResult): Rule {.base.} =
+method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
-method translate(re: Reference, context: LiltContext, currentResult: CurrentResult): Rule =
+method translate(re: Reference, context: LiltContext): Rule =
     return context[re.id]
 
-method translate(se: Sequence, context: LiltContext, currentResult: CurrentResult): Rule =
+method translate(se: Sequence, context: LiltContext): Rule =
     let isTopLevel = se.parent of outer_ast.Definition
 
-    proc rule(phead: int, code: string): RuleVal =
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         var head = phead
 
         var
@@ -151,7 +151,7 @@ method translate(se: Sequence, context: LiltContext, currentResult: CurrentResul
             returnNodeCodeProps = initTable[string, string]()
 
         for node in se.contents:
-            let returnVal = translate(node, context, currentResult)(head, code)
+            let returnVal = translate(node, context)(head, code, currentResult)
             head = returnVal.head
 
             if se.returnType == rrtCode:
@@ -183,19 +183,19 @@ method translate(se: Sequence, context: LiltContext, currentResult: CurrentResul
 
     return debugWrap(rule, se)
 
-method translate(ch: Choice, context: LiltContext, currentResult: CurrentResult): Rule =
-    proc rule(phead: int, code: string): RuleVal =
+method translate(ch: Choice, context: LiltContext): Rule =
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         for node in ch.contents:
             try:
-                return translate(node, context, currentResult)(phead, code)
+                return translate(node, context)(phead, code, currentResult)
             except RuleError:
                 discard
         raise newException(RuleError, "Didn't match any rule.")
 
     return debugWrap(rule, ch)
 
-method translate(li: Literal, context: LiltContext, currentResult: CurrentResult): Rule =
-    proc rule(phead: int, code: string): RuleVal =
+method translate(li: Literal, context: LiltContext): Rule =
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         var head = phead
         for ci in 0 ..< li.text.len:
             if li.text[ci] == code{head}:
@@ -211,8 +211,8 @@ method translate(li: Literal, context: LiltContext, currentResult: CurrentResult
 
     return debugWrap(rule, li)
 
-method translate(s: Set, context: LiltContext, currentResult: CurrentResult): Rule =
-    proc rule(phead: int, code: string): RuleVal =
+method translate(s: Set, context: LiltContext): Rule =
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         let c = code{phead}
         if c in s.charset:
             return (phead + 1, $c)
@@ -229,12 +229,12 @@ code -> ""
 list -> []
 node -> nilNode
 ]#
-method translate(o: Optional, context: LiltContext, currentResult: CurrentResult): Rule =
-    let innerRule = translate(o.inner, context, currentResult)
+method translate(o: Optional, context: LiltContext): Rule =
+    let innerRule = translate(o.inner, context)
 
-    proc rule(phead: int, code: string): RuleVal =
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         try:
-            return innerRule(phead, code)
+            return innerRule(phead, code, currentResult)
         except RuleError:
             if o.returnType == rrtList:
                 return (phead, newSeq[inner_ast.Node]())
@@ -245,10 +245,10 @@ method translate(o: Optional, context: LiltContext, currentResult: CurrentResult
 
     return debugWrap(rule, o)
 
-method translate(op: OnePlus, context: LiltContext, currentResult: CurrentResult): Rule =
-    let innerRule = translate(op.inner, context, currentResult)
+method translate(op: OnePlus, context: LiltContext): Rule =
+    let innerRule = translate(op.inner, context)
 
-    proc rule(phead: int, code: string): RuleVal =
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         var head = phead
         var matchedCount = 0
 
@@ -257,7 +257,7 @@ method translate(op: OnePlus, context: LiltContext, currentResult: CurrentResult
 
         while true:
             try:
-                let retVal = innerRule(head, code)
+                let retVal = innerRule(head, code, currentResult)
                 head = retVal.head
 
                 if op.returnType == rrtList:
@@ -279,76 +279,45 @@ method translate(op: OnePlus, context: LiltContext, currentResult: CurrentResult
 
     return debugWrap(rule, op)
 
-method translate(g: Guard, context: LiltContext, currentResult: CurrentResult): Rule =
-    let innerRule = translate(g.inner, context, currentResult)
+method translate(g: Guard, context: LiltContext): Rule =
+    let innerRule = translate(g.inner, context)
 
-    proc rule(head: int, code: string): RuleVal =
+    proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
         try:
-            discard innerRule(head, code):
+            discard innerRule(head, code, currentResult)
         except RuleError:
             return (head, "")  # TODO: Returning Code "" is a smell
         raise newException(RuleError, "Code matched guard inner rule.")
 
     return debugWrap(rule, g)
 
-method translate(p: Property, context: LiltContext, currentResult: CurrentResult): Rule =
-    let innerRule = translate(p.inner, context, currentResult)
+method translate(p: Property, context: LiltContext): Rule =
+    let innerRule = translate(p.inner, context)
 
-    proc rule(head: int, code: string): RuleVal =
-        return innerRule(head, code)
+    proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
+        return innerRule(head, code, currentResult)
     
     return debugWrap(rule, p)
 
-method translate(e: Extension, context: LiltContext, currentResult: CurrentResult): Rule =
-    let innerRule = translate(e.inner, context, currentResult)
+method translate(e: Extension, context: LiltContext): Rule =
+    let innerRule = translate(e.inner, context)
     
-    proc rule(head: int, code: string): RuleVal =
-        return innerRule(head, code)
+    proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
+        return innerRule(head, code, currentResult)
     
     return debugWrap(rule, e)
 
 proc addDefinition(def: Definition, context: LiltContext) =
     ## Add a definition to a context
-    var currentResult = newCurrentResult()
-    context[def.id] = translate(def.body, context, currentResult)
+    context[def.id] = translate(def.body, context)
 
 proc merge[K, V](t1, t2: TableRef[K, V]) =
     for key in t2.keys:
         t1[key] = t2[key]
 
-# Builtins
-
-
-var builtins: LiltContext = newTable[string, Rule]()
-
-#[
-builtins["anything"] = proc(head: int, code: string): RuleVal =
-    return (head + 1, $code{head})
-builtins["whitespace"] = proc(head: int, code: string): RuleVal =
-    if code{head} in su.Whitespace:
-        return (head + 1, $code{head})
-    raise newException(RuleError, "'$1' is not whitespace." % $code{head})
-
-builtins["lower"] = translate(newSet("abcdefghijklmnopqrstuvwxyz"), builtins)
-builtins["upper"] = translate(newSet("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), builtins)
-builtins["alpha"] = translate(newChoice(@[
-    outer_ast.Node(newReference("lower")),
-    outer_ast.Node(newReference("upper")),
-]), builtins)
-
-builtins["digit"] = translate(newSet("0123456789"), builtins)
-builtins["alphanum"] = translate(newChoice(@[
-    outer_ast.Node(newReference("alpha")),
-    outer_ast.Node(newReference("digit")),
-]), builtins)
-
-builtins["_"] = translate(newOptional(newOnePlus(newReference("whitespace"))), builtins)
-]#
-
 method translate(prog: Program): LiltContext {.base.} =
     ## Translates a program to a table of definitions
     var context: LiltContext = newTable[string, Rule]()
-    context.merge(builtins)
     for definition in prog.definitions:
         addDefinition(Definition(definition), context)
     return context
@@ -375,6 +344,7 @@ when isMainModule:
     # Translate to runnable Nim constructs
     let res = translate(Program(programAst))
 
+    var currentResult = newCurrentResult()
     # Run program
-    echo res["sentence"](0, json)
+    echo res["sentence"](0, json, currentResult)
 
