@@ -355,8 +355,8 @@ method translate(prog: Program): LiltContext {.base.} =
 
 when isMainModule:
     const code = r"""
-    word: val=*<abcdefghijklmnopqrstuvwxyz>
     sentence: &word *[", " &word]
+    word: val=*<abcdefghijklmnopqrstuvwxyz>
     """
 
     const json = """several, words, in, a, sentence"""

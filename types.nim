@@ -115,20 +115,37 @@ method inferReturnType(prog: Program, knownReturnTypes: KnownTypeRules) =
   discard  # Keeps rrtTypeless
 
 proc inferReturnTypes*(ast: Node) =
-  #[
-  To infer return types, we iterate over the ast from deepest to most
-  shallow node, building each time on the types of the previous.
-  ]#
   let layers = ast.layers
+  let definitionLayer = layers[1]  # TODO: may fail with out of bounds
+
   var returnTypeTable: KnownTypeRules = initTable[string, outer_ast.RuleReturnType]()
 
-  let definitionLayer = layers[1]  # TODO: layers[1] will fail if no definitions
+  # First, infer types of definitons and add to the table
+  for definition in definitionLayer:
+    let contents = definition.descendants
+    # Get top-level nodes. These are the ones contained in SEQUENCE/CHOICE contained in DEFINITON
+    let topLevel = definition.layers[2]  # TODO: may fail with out of bounds
+    var infferedReturnType = rrtTypeless  # rrtTypeless as a substitute for `nil`
+
+    for node in topLevel:
+      if node of Property:
+        infferedReturnType = rrtNode
+        break
+
+    for node in contents:
+      if node of Extension:
+        infferedReturnType = rrtList
+        break
+
+    # If not rrtNode or rrtList, rrtCode.
+    if infferedReturnType == rrtTypeless:
+      infferedReturnType = rrtCode
+
+    returnTypeTable[Definition(definition).id] = infferedReturnType
+
+  # Next, infer the types of the rest of the AST
   for definition in definitionLayer:
     let innerLayers = definition.layers
     for layer in innerLayers[1 .. innerLayers.len - 1].reversed:  # [1..~] because we want to exclude the actual definition
       for node in layer:
         inferReturnType(node, returnTypeTable)
-
-    # Record type of defined Rule
-    let definitionNode = outer_ast.Definition(definition)
-    returnTypeTable[definitionNode.id] = definitionNode.body.returnType
