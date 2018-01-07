@@ -418,35 +418,31 @@ proc parseProgram(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newProgram(definitions))
 
+#~# Exposed API #~#
+
 proc parseProgram*(code: string): outer_ast.Node =
     var (head, node) = parseProgram(0, code)
     if head < code.len:
         raise newException(ParsingError, "Extranious code at loc $1" % $head)
     return node
 
-when isMainModule:
-    const code = r"""
-    object: "{" _ members=?members _ "}"
-    members: &member ?[_ "," _ &members]
-    member: key=string _ ":" _ val=value
+import macros
+macro expose(procName: untyped): typed =
+    return quote do:
+        proc `procName`*(code: string): outer_ast.Node =
+            return `procName`(0, code).node
 
-    array: "[" _ values=?values _ "]"
-    values: &value ?[_ "," _ &values]
-
-    value: string | number | object | array | "true" | "false" | "null"
-
-    string: "\"" val=*strChar "\""
-    strChar: [!<"\\> anything]
-        | ["\\" <"\\/bfnrt>]
-        | ["\\u" hexDigit hexDigit hexDigit hexDigit]
-    hexDigit: digit | <abcdefABCDEF>
-
-    nonZero: !"0" digit
-    number: ?"-" ["0" | [nonZero *digit]] ?["." +digit] ?[["e" | "E"] ?["+" | "-"] +digit]
-
-    main: _ topArr=array _
-    """
-
-    var res = parseProgram(code)
-    echo $res
-    echo $$res
+expose(parseDefinition)
+expose(parseSequence)
+expose(parseChoice)
+expose(parseExpression)
+expose(parseProperty)
+expose(parseExtension)
+expose(parseBrackets)
+expose(parseGuard)
+expose(parseZeroPlus)
+expose(parseOnePlus)
+expose(parseOptional)
+expose(parseSet)
+expose(parseLiteral)
+expose(parseReference)

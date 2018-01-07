@@ -101,7 +101,15 @@ method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
     se.returnType = rrtCode
   else:
     if children.mapIt(it of Extension).any(id):
-      se.returnType = rrtList
+      # Run same algo as outlined in inferReturnType(Program)
+      let ext = children.filterIt(it of Extension)[0]
+      let inner = Extension(ext).inner
+      inferReturnType(inner, knownReturnTypes)
+
+      if inner.returnType == rrtCode:
+        se.returnType = rrtCode
+      elif inner.returnType == rrtNode:
+        se.returnType = rrtList
     elif children.mapIt(it of Property).any(id):
       se.returnType = rrtNode
     else:
@@ -133,7 +141,25 @@ proc inferReturnTypes*(ast: Node) =
 
     for node in contents:
       if node of Extension:
-        infferedReturnType = rrtList
+        # Extensions may be used in a rule that returns List, or Code.
+        # This is because Extensions are used to concatenate lists and also
+        # to concatenate strings.
+        # As such, we can not immediately infer whether the rule's return type
+        # is list or code.
+        # We do know, however, if one Extension's inner node returns Node, then
+        # the rule is rrtList; if one Extension's inner node returns Code, then
+        # the rule is rrtCode.
+        let inner = Extension(node).inner
+        # Infer the return type of the inner node as best we can right now
+        inferReturnType(inner, returnTypeTable)
+
+        if inner.returnType == rrtCode:
+          infferedReturnType = rrtCode
+        elif inner.returnType == rrtNode:
+          infferedReturnType = rrtList
+        else:
+          # Unable to infer type
+          raise newException(InvalidType, "Cannot infer type for node $1" % $inner)
         break
 
     # If not rrtNode or rrtList, rrtCode.

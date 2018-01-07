@@ -344,7 +344,7 @@ when isMainModule:
     # Translate to runnable Nim constructs
     let res = translate(Program(programAst))
 
-    var currentResult = newCurrentResult()
     # Run program
+    var currentResult = newCurrentResult()
     echo res["sentence"](0, json, currentResult)
 

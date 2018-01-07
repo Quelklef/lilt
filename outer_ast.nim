@@ -65,6 +65,9 @@ proc isBranch*(n: Node): bool =
 proc isLeaf*(n: Node): bool =
     return not n.isBranch
 
+method `==`*(node: Node, other: Node): bool {.base, noSideEffect.} =
+    raise newException(BaseError, "Cannot use `==` with base type Node")
+
 template extend[T](s1: seq[T], s2: seq[T]) =
   for item in s2:
     s1.add(item)
@@ -90,13 +93,13 @@ proc layers*(node: Node): seq[seq[Node]] =
     ##     [OPTIONAL [LITERAL 'c']]
     ## ]]]
     ## will return @[
-    ##     [PROGRAM],
-    ##     [DEFINITION],
-    ##     [SEQUENCE],
-    ##     [SET, GUARD, OPTIONAL],
-    ##     [CHOICE, LITERAL 'c'],
-    ##     [LITERAL 'a'],
-    ##     [LITERAL 'b']
+    ##     @[PROGRAM],
+    ##     @[DEFINITION],
+    ##     @[SEQUENCE],
+    ##     @[SET, GUARD, OPTIONAL],
+    ##     @[CHOICE, LITERAL 'c'],
+    ##     @[LITERAL 'a'],
+    ##     @[LITERAL 'b']
     ## ]
     result = @[@[node]]
     while true:
@@ -144,6 +147,9 @@ method `$$`*(p: Program): string =
 method children*(p: Program): seq[Node] =
     return p.definitions
 
+method `==`*(prog: Program, other: Node): bool =
+    return other of Program and prog.definitions == other.Program.definitions
+
 # Reference
 
 type Reference* = ref object of Node
@@ -160,6 +166,9 @@ method `$$`*(r: Reference): string =
 
 method children*(r: Reference): seq[Node] =
     return @[]
+
+method `==`*(r: Reference, other: Node): bool =
+    return other of Reference and r.id == other.Reference.id
 
 # Definition
 
@@ -180,6 +189,14 @@ method `$$`*(d: Definition): string =
 
 method children*(d: Definition): seq[Node] =
     return @[d.body]
+
+method `==`*(def: Definition, other: Node): bool =
+    if not (other of Definition):
+        return false
+
+    let otherDef = Definition(other)
+    return def.id == otherDef.id and
+        def.body == otherDef.body
 
 # Sequence
 
@@ -207,6 +224,9 @@ method `$$`*(s: Sequence): string =
 method children*(s: Sequence): seq[Node] =
     return s.contents
 
+method `==`*(se: Sequence, other: Node): bool =
+    return other of Sequence and se.contents == other.Sequence.contents
+
 # Choice
 
 type Choice* = ref object of Node
@@ -233,6 +253,9 @@ method `$$`(c: Choice): string =
 method children*(c: Choice): seq[Node] =
     return c.contents
 
+method `==`*(choice: Choice, other: Node): bool =
+    return other of Choice and choice.contents == other.Choice.contents
+
 # Literal
 
 type Literal* = ref object of Node
@@ -250,6 +273,9 @@ method `$$`*(li: Literal): string =
 method children*(li: Literal): seq[Node] =
     return @[]
 
+method `==`*(li: Literal, other: Node): bool =
+    return other of Literal and li.text == other.Literal.text
+
 # Set
 
 type Set* = ref object of Node
@@ -266,6 +292,9 @@ method `$$`*(s: Set): string =
 
 method children*(s: Set): seq[Node] =
     return @[]
+
+method `==`*(se: Set, other: Node): bool =
+    return other of Set and se.charset == other.Set.charset
 
 # Optional
 
@@ -286,6 +315,9 @@ method `$$`*(o: Optional): string =
 method children*(o: Optional): seq[Node] =
     return @[o.inner]
 
+method `==`*(opt: Optional, other: Node): bool =
+    return other of Optional and opt.inner == other.Optional.inner
+
 # OnePlus
 
 type OnePlus* = ref object of Node
@@ -304,6 +336,9 @@ method `$$`*(op: OnePlus): string =
 
 method children(op: OnePlus): seq[Node] =
     return @[op.inner]
+
+method `==`*(op: OnePlus, other: Node): bool =
+    return other of OnePlus and op.inner == other.OnePlus.inner
 
 # Guard
 
@@ -324,6 +359,9 @@ method `$$`*(g: Guard): string =
 method children*(g: Guard): seq[Node] =
     return @[g.inner]
 
+method `==`*(guard: Guard, other: Node): bool =
+    return other of Guard and guard.inner == other.Guard.inner
+
 # Extension
 
 type Extension* = ref object of Node
@@ -342,6 +380,9 @@ method `$$`*(e: Extension): string =
 
 method children*(e: Extension): seq[Node] =
     return @[e.inner]
+
+method `==`*(ext: Extension, other: Node): bool =
+    return other of Extension and ext.inner == other.Extension.inner
 
 # Property
 
@@ -362,6 +403,14 @@ method `$$`*(p: Property): string =
 
 method children*(p: Property): seq[Node] =
     return @[p.inner]
+
+method `==`*(prop: Property, other: Node): bool =
+    if not (other of Property):
+        return false
+
+    let otherProp = Property(other)
+    return otherProp.propName == prop.propName and
+        otherProp.inner == prop.inner
 
 
 when isMainModule:
