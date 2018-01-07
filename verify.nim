@@ -41,4 +41,4 @@ proc verify*(ast: outer_ast.Node) =
         containsProperty = desc.anyIt(it of outer_ast.Property)
         containsExtension = desc.anyIt(it of outer_ast.Extension)
       if containsProperty and containsExtension:
-        raise newException(InvalidError, "Definition of '$1' contains both Property and Extension." % cast[Definition](def).id)
+        raise newException(InvalidError, "Definition of '$1' contains both Property and Extension." % Definition(def).id)
