@@ -33,7 +33,19 @@ proc `>$`(s: string, indentText = "\t"): string =
     ## Ident a block of text
     return s.split("\n").mapIt(indentText & it).join("\n")
 
+type RuleReturnType* = enum
+    # Used when parsing, before return types are known.
+    # Also used for nodes Program and Definition
+    # Default since first listed in enum
+    rrtTypeless,
+
+    rrtCode,  # For instance, `"banana"`
+    rrtNode,  # For instance, `member: key=string _ ":" _ val=value`
+    rrtList,  # For instance, `*member`
+
 type Node* = ref object of RootObj
+    returnType*: RuleReturnType  # Defaults to rrtTypeless
+    parent*: Node
 
 # To be raised if a method is called on a base
 # type which doesn't implement it
@@ -102,6 +114,12 @@ proc layers*(node: Node): seq[seq[Node]] =
         else:
             result.add(newLayer)
 
+proc ancestors*(node: Node): seq[Node] =
+    result = @[]
+    var curNode = node.parent
+    while curNode != nil:
+        result.add(curNode)
+        curNode = curNode.parent
 
 # Program
 
@@ -109,7 +127,10 @@ type Program* = ref object of Node
     definitions*: seq[Node]
 
 proc newProgram*(dfns: seq[Node]): Program =
-    return Program(definitions: dfns)
+    let p = Program(definitions: dfns)
+    for dfn in dfns:
+        dfn.parent = p
+    return p
 
 method `$`*(p: Program): string =
     var st = ""
@@ -138,7 +159,7 @@ method `$`*(r: Reference): string =
     return "[REF '$1']" % r.id
 
 method `$$`*(r: Reference): string =
-    return "REFERENCE '$1'" % r.id
+    return "$1 REFERENCE '$2'" % [$r.returnType, r.id]
 
 method children*(r: Reference): seq[Node] =
     return @[]
@@ -150,13 +171,15 @@ type Definition* = ref object of Node
     body*: Node
 
 proc newDefinition*(id: string, body: Node): Definition =
-    return Definition(id: id, body: body)
+    let d = Definition(id: id, body: body)
+    body.parent = d
+    return d
 
 method `$`*(d: Definition): string =
     return "[DEF '$1' $2]" % [$d.id, $d.body]
 
 method `$$`*(d: Definition): string =
-    return "DEFINITION '$1'\n$2" % [$d.id, >$ $$d.body]
+    return "$1 DEFINITION '$2'\n$3" % [$d.returnType, $d.id, >$ $$d.body]
 
 method children*(d: Definition): seq[Node] =
     return @[d.body]
@@ -167,7 +190,10 @@ type Sequence* = ref object of Node
     contents*: seq[Node]
 
 proc newSequence*(cts: seq[Node]): Sequence =
-    return Sequence(contents: cts)
+    let s = Sequence(contents: cts)
+    for node in s.contents:
+        node.parent = s
+    return s
 
 method `$`*(s: Sequence): string =
     var st = ""
@@ -179,7 +205,7 @@ method `$$`*(s: Sequence): string =
     var inners: seq[string] = @[]
     for n in s.contents:
         inners.add($$n)
-    return "SEQUENCE\n$1" % >$ inners.join("\n")
+    return "$1 SEQUENCE\n$2" % [$s.returnType, >$ inners.join("\n")]
 
 method children*(s: Sequence): seq[Node] =
     return s.contents
@@ -190,7 +216,10 @@ type Choice* = ref object of Node
     contents*: seq[Node]
 
 proc newChoice*(cts: seq[Node]): Choice =
-    return Choice(contents: cts)
+    let c = Choice(contents: cts)
+    for node in cts:
+        node.parent = c
+    return c
 
 method `$`*(c: Choice): string =
     var st = ""
@@ -202,7 +231,7 @@ method `$$`(c: Choice): string =
     var inners: seq[string] = @[]
     for n in c.contents:
         inners.add($$n)
-    return "CHOICE\n$1" % >$ inners.join("\n")
+    return "$1 CHOICE\n$2" % [$c.returnType, >$ inners.join("\n")]
 
 method children*(c: Choice): seq[Node] =
     return c.contents
@@ -219,7 +248,7 @@ method `$`*(li: Literal): string =
     return "[LIT '$1']" % li.text
 
 method `$$`*(li: Literal): string =
-    return "LITERAL '$1'" % li.text
+    return "$1 LITERAL '$2'" % [$li.returnType, li.text]
 
 method children*(li: Literal): seq[Node] =
     return @[]
@@ -236,7 +265,7 @@ method `$`*(s: Set): string =
     return "[SET '$1']" % s.charset
 
 method `$$`*(s: Set): string =
-    return "SET '$1'" % s.charset
+    return "$1 SET '$2'" % [$s.returnType, s.charset]
 
 method children*(s: Set): seq[Node] =
     return @[]
@@ -247,13 +276,15 @@ type Optional* = ref object of Node
     inner*: Node
 
 proc newOptional*(inner: Node): Optional =
-    return Optional(inner: inner)
+    let o = Optional(inner: inner)
+    inner.parent = o
+    return o
 
 method `$`*(o: Optional): string =
     return "[OPTIONAL $1]" % $o.inner
 
 method `$$`*(o: Optional): string =
-    return "OPTIONAL\n$1" % >$ $$o.inner
+    return "$1 OPTIONAL\n$2" % [$o.returnType, >$ $$o.inner]
 
 method children*(o: Optional): seq[Node] =
     return @[o.inner]
@@ -264,13 +295,15 @@ type OnePlus* = ref object of Node
     inner*: Node
 
 proc newOnePlus*(inner: Node): OnePlus =
-    return OnePlus(inner: inner)
+    let op = OnePlus(inner: inner)
+    inner.parent = op
+    return op
 
 method `$`*(op: OnePlus): string =
     return "[ONEPLUS $1]" % $op.inner
 
 method `$$`*(op: OnePlus): string =
-    return "ONEPLUS\n$1" % >$ $$op.inner
+    return "$1 ONEPLUS\n$2" % [$op.returnType, >$ $$op.inner]
 
 method children(op: OnePlus): seq[Node] =
     return @[op.inner]
@@ -281,13 +314,15 @@ type Guard* = ref object of Node
     inner*: Node
 
 proc newGuard*(inner: Node): Guard =
-    return Guard(inner: inner)
+    let g = Guard(inner: inner)
+    inner.parent = g
+    return g
 
 method `$`*(g: Guard): string =
     return "[GUARD $1]" % $g.inner
 
 method `$$`*(g: Guard): string =
-    return "GUARD\n$1" % >$ $$g.inner
+    return "$1 GUARD\n$2" % [$g.returnType, >$ $$g.inner]
 
 method children*(g: Guard): seq[Node] =
     return @[g.inner]
@@ -298,13 +333,15 @@ type Extension* = ref object of Node
     inner*: Node
 
 proc newExtension*(inner: Node): Extension =
-    return Extension(inner: inner)
+    let e = Extension(inner: inner)
+    inner.parent = e
+    return e
 
 method `$`*(e: Extension): string =
     return "[EXT $1]" % $e.inner
 
 method `$$`*(e: Extension): string =
-    return "EXTENSION\n$1" % >$ $$e.inner
+    return "$1 EXTENSION\n$2" % [$e.returnType, >$ $$e.inner]
 
 method children*(e: Extension): seq[Node] =
     return @[e.inner]
@@ -312,17 +349,24 @@ method children*(e: Extension): seq[Node] =
 # Property
 
 type Property* = ref object of Node
-    propName: string
+    propName*: string
     inner*: Node
 
 proc newProperty*(name: string, inner: Node): Property =
-    return Property(propName: name, inner: inner)
+    let p = Property(propName: name, inner: inner)
+    inner.parent = p
+    return p
 
 method `$`*(p: Property): string =
     return "[PROP '$1' $2]" % [p.propName, $p.inner]
 
 method `$$`*(p: Property): string =
-    return "PROPERTY '$1'\n$2" % [p.propName, >$ $$p.inner]
+    return "$1 PROPERTY '$2'\n$3" % [$p.returnType, p.propName, >$ $$p.inner]
 
 method children*(p: Property): seq[Node] =
     return @[p.inner]
+
+
+when isMainModule:
+    var p = newProperty("looooooooooop", newLiteral("loop"))
+    echo p.returnType

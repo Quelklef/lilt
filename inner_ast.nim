@@ -12,6 +12,7 @@ or branches, which tonain:
 ]#
 
 import tables
+import strutils
 
 type Node* = object
   isLeaf*: bool
@@ -19,34 +20,26 @@ type Node* = object
 
   # iff not isLeaf; is branch:
   kind*: string
-  props*: Table[string, Node]
-  children*: seq[Node]
+  nodeProps*: Table[string, Node]  # Properties which map to nodes
+  childProps*: Table[string, seq[Node]]  # Properties which map to lists
+  codeProps: Table[string, string]
+
+proc `$`*(node: Node): string =
+  if node.isLeaf:
+    return "[Leaf: '$1']" % node.code
+  else:
+    return "[Branch: '$1' $2 $3 $4]" % [$node.kind, $node.nodeProps, $node.childProps, $node.codeProps]
 
 template isBranch*(node: Node): bool =
   not node.isLeaf
 
-const noProps = initTable[string, Node]()
+const
+  noNodeProps = initTable[string, Node]()
+  noChildProps = initTable[string, seq[Node]]()
+  noCodeProps = initTable[string, string]()
 
 proc newCode*(code: string): Node =
-  return Node(isLeaf: true, code: code, kind: nil, props: noProps, children: @[])
+  return Node(isLeaf: true, code: code, kind: nil, nodeProps: noNodeProps, childProps: noChildProps, codeProps: noCodeProps)
 
-proc newBranch*(kind: string, props: Table[string, Node], children: seq[Node]): Node =
-  return Node(isLeaf: false, code: nil, kind: kind, props: props, children: children)
-
-# Convenience methods
-
-template extend[T](s1: seq[T], s2: seq[T]) =
-  for item in s2:
-    s1.add(item)
-
-proc descendants*(node: Node): seq[Node] =
-  ## Recursively iterates through all descendants of given node.
-  
-  result = node.children
-  var head = 0  # Index of current node we're unpacking
-
-  while head < result.len:
-    let current_node = result[head]
-    if current_node.isBranch:
-      result.extend(current_node.children)
-    inc(head)
+proc newBranch*(kind: string, props: Table[string, Node], childProps: Table[string, seq[Node]], codeProps: Table[string, string]): Node =
+  return Node(isLeaf: false, code: nil, kind: kind, nodeProps: props, childProps: childProps, codeProps: codeProps)
