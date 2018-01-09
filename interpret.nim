@@ -233,6 +233,7 @@ method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
 
     proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+        # TODO: AAAAAAAAAAAAAAAAAAAAAAA
         try:
             return innerRule(phead, code, currentResult)
         except RuleError:

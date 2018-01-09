@@ -49,8 +49,9 @@ method inferReturnType(opt: Optional, knownReturnTypes: KnownTypeRules) =
   # Fails on inner return type Code -> returns ""
   let inner = opt.inner
 
-  if inner.returnType in [rrtList, rrtCode]:
+  if inner.returnType != rrtTypeless:
     opt.returnType = opt.inner.returnType
+    # TODO: Return code consumed by node if succeeds; and "" if fails
   else:
     raise newException(InvalidType, "Cannot have Optional of rule that returns type '$1'" % $inner.returnType)
 
@@ -62,7 +63,7 @@ method inferReturnType(lit: Literal, knownReturnTypes: KnownTypeRules) =
 
 method inferReturnType(re: Reference, knownReturnTypes: KnownTypeRules) =
   if re.id notin knownReturnTypes:
-    raise newException(InvalidType, "Rule '$1' has unknown type." % re.id)  # TODO: Bad exception
+    raise newException(InvalidType, "Rule '$1' has unknown type." % re.id)  # TODO: Bad exception..?
   re.returnType = knownReturnTypes[re.id]
 
 proc allSame[T](s: seq[T]): bool =
@@ -104,7 +105,6 @@ method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
       # Run same algo as outlined in inferReturnType(Program)
       let ext = children.filterIt(it of Extension)[0]
       let inner = Extension(ext).inner
-      inferReturnType(inner, knownReturnTypes)
 
       if inner.returnType == rrtCode:
         se.returnType = rrtCode
@@ -128,45 +128,71 @@ proc inferReturnTypes*(ast: Node) =
   var returnTypeTable: KnownTypeRules = initTable[string, outer_ast.RuleReturnType]()
 
   # First, infer types of definitons and add to the table
-  for definition in definitionLayer:
-    let contents = definition.descendants
-    # Get top-level nodes. These are the ones contained in SEQUENCE/CHOICE contained in DEFINITON
-    let topLevel = definition.layers{2}
-    var infferedReturnType = rrtTypeless  # rrtTypeless as a substitute for `nil`
+  var definitionsToInfer: seq[Definition] = definitionLayer.mapIt(it.Definition)
+  while true:
+    var inferredAtLeastOneDefiniton = false
+    for idx, definition in definitionsToInfer:
+      # Get top-level nodes. These are the ones contained in SEQUENCE/CHOICE contained in DEFINITON
+      let topLevel = definition.layers{2}
+      var infferedReturnType = rrtTypeless  # rrtTypeless as a substitute for `nil`
 
-    for node in topLevel:
-      if node of Property:
-        infferedReturnType = rrtNode
-        break
+      var containsNoExtensionsAndNoProperties = true
 
-    for node in contents:
-      if node of Extension:
-        # Extensions may be used in a rule that returns List, or Code.
-        # This is because Extensions are used to concatenate lists and also
-        # to concatenate strings.
-        # As such, we can not immediately infer whether the rule's return type
-        # is list or code.
-        # We do know, however, if one Extension's inner node returns Node, then
-        # the rule is rrtList; if one Extension's inner node returns Code, then
-        # the rule is rrtCode.
-        let inner = Extension(node).inner
-        # Infer the return type of the inner node as best we can right now
-        inferReturnType(inner, returnTypeTable)
+      for node in topLevel:
+        if node of Property:
+          infferedReturnType = rrtNode
+          containsNoExtensionsAndNoProperties = false
+          inferredAtLeastOneDefiniton = true
+          break
 
-        if inner.returnType == rrtCode:
-          infferedReturnType = rrtCode
-        elif inner.returnType == rrtNode:
-          infferedReturnType = rrtList
-        else:
-          # Unable to infer type
-          raise newException(InvalidType, "Cannot infer type for node $1" % $inner)
-        break
+      if infferedReturnType == rrtTypeless:  # If not yet inferred
+        for node in definition.descendants:
+          if node of Extension:
+            containsNoExtensionsAndNoProperties = false
+            # Extensions may be used in a rule that returns List, or Code.
+            # This is because Extensions are used to concatenate lists and also
+            # to concatenate strings.
+            # As such, we can not immediately infer whether the rule's return type
+            # is list or code.
+            # We do know, however, if one Extension's inner node returns Node, then
+            # the rule is rrtList; if one Extension's inner node returns Code, then
+            # the rule is rrtCode.
+            let inner = Extension(node).inner
+            # Infer the return type of the inner node as best we can right now
+            var inferredInner = false
+            try:
+              inferReturnType(inner, returnTypeTable)
+              inferredInner = true
+            except InvalidType:
+              discard
 
-    # If not rrtNode or rrtList, rrtCode.
-    if infferedReturnType == rrtTypeless:
-      infferedReturnType = rrtCode
+            if inferredInner:
+              if inner.returnType == rrtCode:
+                infferedReturnType = rrtCode
+                inferredAtLeastOneDefiniton = true
+              elif inner.returnType == rrtNode:
+                infferedReturnType = rrtList
+                inferredAtLeastOneDefiniton = true
+              else:
+                # Unable to infer type
+                raise newException(InvalidType, "Cannot infer type for node $1" % $inner)
+              break
+            else:
+              # Perhaps we can infer in the next pass
+              discard
 
-    returnTypeTable[Definition(definition).id] = infferedReturnType
+      # If not rrtNode or rrtList, rrtCode.
+      if infferedReturnType == rrtTypeless and containsNoExtensionsAndNoProperties:
+        infferedReturnType = rrtCode
+        inferredAtLeastOneDefiniton = true
+
+      if infferedReturnType != rrtTypeless:
+        #echo "Inferred type $1 of $2" % [$infferedReturnType, $definition]
+        returnTypeTable[Definition(definition).id] = infferedReturnType
+        definitionsToInfer.del(idx)
+
+    if not inferredAtLeastOneDefiniton:
+      break
 
   # Next, infer the types of the rest of the AST
   for definition in definitionLayer:

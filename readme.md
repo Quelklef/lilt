@@ -6,8 +6,11 @@ Lilt is a language for writing parsers.
 Lilt, in fact, stands for:
 
 L - Super
+
 I - Duper
+
 L - Easy
+
 T - Parsing
 
 Before explaining what Lilt is and how it works, some disambiguation should be done.
@@ -27,6 +30,8 @@ In order to mitigate confusion, I will adapt the following convention for this r
 6. The Non-Lilt AST will be called the "generated tree" or "Tree".
 
 As such, a piece of Lilt code is run through a parser and interpreted as a generator which acts on text.
+
+***
 
 The fundamental idea of Lilt is a _rule_. A Rule can be though of as a function of text.
 A rule is given some text, and does a few things:
@@ -56,7 +61,7 @@ identifier: *<abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUCWXYZ_>
 param: id=identifier
 ```
 
-`*` means zero-or-more.
+`<abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUCWXYZ_>` means any of "a", "b", "c", "d", etc.; `*` means zero-or-more.
 
 The `=` syntax is for defining properties. Nodes returned by `param` will have a property
 named `id` which is their identifier.
@@ -197,7 +202,7 @@ So, `"banana" | "phone"` matches both `banana` and `phone`.
 
 Choices short-circuit; they will choose the first matching rule.
 
-### Guard
+#### Guard
 
 A guard matches any text that _doesn't_ match the inner expression.
 
