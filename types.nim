@@ -11,7 +11,7 @@ from misc import `{}`, BaseError
 # Used when types are invalid, for instance
 # `*rule` is invalid if `rule` returns rrtCode,
 # since lists of code may not be returned
-type InvalidType = object of Exception
+type InvalidType* = object of Exception
 
 # Maps the name of rules to their type
 type KnownTypeRules = Table[string, outer_ast.RuleReturnType]
@@ -25,14 +25,14 @@ method inferReturnType(node: Node, knownReturnTypes: KnownTypeRules) {.base.} =
 
 method inferReturnType(prop: Property, knownReturnTypes: KnownTypeRules) =
   # Properties return the same type as their contained node
-  prop.returnType = prop.inner.returnType
+  prop.returnType = rrtTypeless
 
 method inferReturnType(ext: Extension, knownReturnTypes: KnownTypeRules) =
   # Properties return the same type as their contained node
   ext.returnType = ext.inner.returnType
 
 method inferReturnType(guard: Guard, knownReturnTypes: KnownTypeRules) =
-  guard.returnType = rrtCode  # Guards always return ""
+  guard.returnType = rrtTypeless
 
 method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
   let inner = op.inner
@@ -45,15 +45,10 @@ method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
     raise newException(InvalidType, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
 method inferReturnType(opt: Optional, knownReturnTypes: KnownTypeRules) =
-  # Fails on inner return type List -> returns []
-  # Fails on inner return type Code -> returns ""
-  let inner = opt.inner
+  if opt.inner.returnType == rrtNode:
+    opt.returnType = rrtTypeless
 
-  if inner.returnType != rrtTypeless:
-    opt.returnType = opt.inner.returnType
-    # TODO: Return code consumed by node if succeeds; and "" if fails
-  else:
-    raise newException(InvalidType, "Cannot have Optional of rule that returns type '$1'" % $inner.returnType)
+  opt.returnType = opt.inner.returnType
 
 method inferReturnType(se: Set, knownReturnTypes: KnownTypeRules) =
   se.returnType = rrtCode
@@ -116,10 +111,10 @@ method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
       se.returnType = rrtCode
 
 method inferReturnType(def: Definition, knownReturnTypes: KnownTypeRules) =
-  discard  # Keeps rrtTypeless
+  def.returnType = rrtTypeless
 
 method inferReturnType(prog: Program, knownReturnTypes: KnownTypeRules) =
-  discard  # Keeps rrtTypeless
+  prog.returnType = rrtTypeless
 
 proc inferReturnTypes*(ast: Node) =
   let layers = ast.layers
@@ -188,7 +183,7 @@ proc inferReturnTypes*(ast: Node) =
 
       if infferedReturnType != rrtTypeless:
         #echo "Inferred type $1 of $2" % [$infferedReturnType, $definition]
-        returnTypeTable[Definition(definition).id] = infferedReturnType
+        returnTypeTable[definition.id] = infferedReturnType
         definitionsToInfer.del(idx)
 
     if not inferredAtLeastOneDefiniton:

@@ -1,3 +1,12 @@
+# Ignore all files without extensions (Nim files compiled on linux)
+*
+!*/
+!*.*
+
+# Ignore exes (Nim filed compiled on Windows) and nim temp files
 *.exe
 nimcache/
 */nimcache
+
+# Ignore special test.nim used by me because there's no CL Nim REPL
+test.nim

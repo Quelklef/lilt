@@ -28,27 +28,21 @@ for some reason...
 
 import sequtils
 import strutils
-from misc import BaseError
-
-proc `>$`(s: string, indentText = "\t"): string =
-    ## Ident a block of text
-    return s.split("\n").mapIt(indentText & it).join("\n")
+from misc import BaseError, `>$`
 
 type RuleReturnType* = enum
-    # Used when parsing, before return types are known.
-    # Also used for nodes Program and Definition
-    # Default since first listed in enum
-    rrtTypeless,
+    rrtUnknown
+    rrtTypeless
 
-    rrtCode,  # For instance, `"banana"`
-    rrtNode,  # For instance, `member: key=string _ ":" _ val=value`
-    rrtList,  # For instance, `*member`
+    rrtCode
+    rrtNode
+    rrtList
 
 type Node* = ref object of RootObj
-    returnType*: RuleReturnType  # Defaults to rrtTypeless
+    returnType*: RuleReturnType
     parent*: Node
 
-method `$`*(n: Node): string {.base.} =
+method `$`*(n: Node): string {.base, noSideEffect.} =
     # For some reason this base method needs to be implemented
     # for the non-base methods to work properly
     raise newException(BaseError, "")
@@ -66,7 +60,7 @@ proc isLeaf*(n: Node): bool =
     return not n.isBranch
 
 method `==`*(node: Node, other: Node): bool {.base, noSideEffect.} =
-    raise newException(BaseError, "Cannot use `==` with base type Node")
+    raise newException(BaseError, "Cannot use `==` with base type Node. Given: $1" % $node)
 
 template extend[T](s1: seq[T], s2: seq[T]) =
   for item in s2:
@@ -117,7 +111,7 @@ proc layers*(node: Node): seq[seq[Node]] =
 proc ancestors*(node: Node): seq[Node] =
     result = @[]
     var curNode = node.parent
-    while curNode != nil:
+    while not curNode.isNil:
         result.add(curNode)
         curNode = curNode.parent
 
@@ -142,7 +136,7 @@ method `$$`*(p: Program): string =
     var inners: seq[string] = @[]
     for def in p.definitions:
         inners.add($$def)
-    return "PROGRAM\n$1" % >$ inners.join("\n")
+    return "$1 PROGRAM\n$2" % [$p.returnType, >$ inners.join("\n")]
 
 method children*(p: Program): seq[Node] =
     return p.definitions
@@ -411,8 +405,3 @@ method `==`*(prop: Property, other: Node): bool =
     let otherProp = Property(other)
     return otherProp.propName == prop.propName and
         otherProp.inner == prop.inner
-
-
-when isMainModule:
-    var p = newProperty("looooooooooop", newLiteral("loop"))
-    echo p.returnType

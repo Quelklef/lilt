@@ -32,13 +32,22 @@ or b) fail. (Sound familiar?)
 Failing is done by raising a RuleError.
 ]#
 
-type RuleVal = object of RootObj
-    head: int
-    kind: RuleReturnType  # But not rrtTypeless
+type RuleVal* = object of RootObj
+    head*: int
+    kind*: RuleReturnType  # But not rrtUnknown
 
-    codeVal: string
-    listVal: seq[inner_ast.Node]
-    nodeVal: inner_ast.Node
+    codeVal*: string
+    listVal*: seq[inner_ast.Node]
+    nodeVal*: inner_ast.Node
+
+proc `$`(s: seq[inner_ast.Node]): string =
+    result = "@["
+    var firstItem = true
+    for node in s:
+        if not firstItem: result &= ", "
+        result &= $node
+        firstItem = false
+    result &= "]"
 
 proc `$`(rv: RuleVal): string =
     if rv.kind == rrtCode:
@@ -52,6 +61,7 @@ proc `$`(rv: RuleVal): string =
 
 # For nodes with no semantic meaning
 # Is just a filler; no code should rely on nil-valued nodes being this value
+# This just makes sure $ and such play nicely with others
 const nilNode = inner_ast.newCode("")
 
 converter toRuleVal(retVal: (int, string)): RuleVal =
@@ -85,20 +95,20 @@ converter toRuleval(retVal: (int, inner_ast.Node)): RuleVal =
 Extensions need to be able to add items to a node list
 instead of returning the items.
 ]#
-type CurrentResult = ref object of RootObj
+type CurrentResult* = ref object of RootObj
     list: seq[inner_ast.Node]
 
-type Rule = proc(head: int, code: string, currentResult: CurrentResult): RuleVal
+type Rule* = proc(head: int, code: string, currentResult: CurrentResult): RuleVal
 type RuleError = object of Exception
 
-type LiltContext = TableRef[string, Rule]
+type LiltContext* = TableRef[string, Rule]
 
-proc newCurrentResult(): CurrentResult =
+proc newCurrentResult*(): CurrentResult =
     return CurrentResult(list: @[])
 
-const doDebug = true
+const doDebug = false
 when not doDebug:
-    template debugWrap(rule: Rule, node: Node): Rule =
+    template debugWrap(rule: Rule, node: outer_ast.Node): Rule =
         rule
 
 else:
@@ -161,13 +171,17 @@ method translate(se: Sequence, context: LiltContext): Rule =
                 currentResult.list.add(returnVal.nodeVal)
             elif node of outer_ast.Property:
                 let propNode = outer_ast.Property(node)
-                if node.returnType == rrtList:
+                # Remember that properties return whatever the inner rule returns
+                case returnVal.kind:  # TODO Should be handled by predictive types, not runtime types
+                of rrtList:
                     returnNodeChildProps[propNode.propName] = returnVal.listVal
-                elif node.returnType == rrtNode:
-                    returnNodeNodeProps[propNode.propName] = returnVal.nodeVal  # Remember that translate(v of Property, context) returns a Rule which returns a Node, not List nor Code
-                elif node.returnType == rrtCode:
+                of rrtNode:
+                    returnNodeNodeProps[propNode.propName] = returnVal.nodeVal
+                of rrtCode:
                     returnNodeCodeProps[propNode.propName] = returnVal.codeVal
-                else:
+                of rrtTypeless:
+                    discard
+                of rrtUnknown:
                     assert false
             else:
                 discard
@@ -233,7 +247,6 @@ method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
 
     proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
-        # TODO: AAAAAAAAAAAAAAAAAAAAAAA
         try:
             return innerRule(phead, code, currentResult)
         except RuleError:
@@ -323,6 +336,12 @@ method translate(prog: Program): LiltContext {.base.} =
         addDefinition(Definition(definition), context)
     return context
 
+proc interpretAst*(ast: outer_ast.Node): LiltContext =
+    verify.verify(ast)
+    types.inferReturnTypes(ast)
+    let res = translate(Program(ast))
+    return res
+
 when isMainModule:
     const code = r"""
     sentence: &word *[", " &word]
@@ -346,6 +365,20 @@ when isMainModule:
     let res = translate(Program(programAst))
 
     # Run program
-    var currentResult = newCurrentResult()
-    echo res["sentence"](0, json, currentResult)
+    echo res["sentence"](0, json, newCurrentResult())
 
+    # Test word
+    #echo res["word"](0, "wgorggnw  ", newCurrentResult())
+
+    when true:
+        block:
+            let code2 = """
+            test: *<abc>
+            node: val=test
+            """
+            let ast2 = parse.parseProgram(code2)
+            verify.verify(ast2)
+            types.inferReturnTypes(ast2)
+            let res = translate(Program(ast2))
+            let v = res["node"](0, "bcbba", newCurrentResult())
+            echo v
