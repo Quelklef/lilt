@@ -16,29 +16,40 @@ import strutils
 import sequtils
 from misc import `>$`
 
-type Node* = object
-  isLeaf*: bool
-  code*: string  # iff isLeaf
+type
+  PropertyKind* = enum
+    pkText, pkNode, pkList
 
-  # iff not isLeaf; is branch:
-  kind*: string
-  nodeProps*: Table[string, Node]  # Properties which map to nodes
-  childProps*: Table[string, seq[Node]]  # Properties which map to lists
-  codeProps*: Table[string, string]
+  # Type of an property on a node
+  # Each property can either be text, a node, or a list of nodes
+  Property* = object
+    case kind: PropertyKind
+    of pkText:
+      text*: string
+    of pkNode:
+      node*: Node
+    of pkList:
+      # Children
+      list*: seq[Node]
 
-proc `==`*(node: Node, other: Node): bool =
-  if node.isLeaf != other.isLeaf:
+  Node* = object
+    kind*: string
+    properties*: Table[string, Property]
+
+proc `==`*(prop: Property, other: Property): bool =
+  if prop.kind != other.kind:
     return false
 
-  let areLeaves = node.isLeaf
-  if areLeaves:
-    return node.code == other.code
+  case prop.kind:
+  of pkText:
+    return prop.text == other.text
+  of pkNode:
+    return prop.node == other.node
+  of pkList:
+    return prop.list == other.list
 
-  # else are branches
-  return node.kind == other.kind and
-    node.nodeProps == other.nodeProps and
-    node.childProps == other.childProps and
-    node.codeProps == other.codeProps
+proc `==`*(node: Node, other: Node): bool =
+  return node.properties == other.properties
 
 proc `$$`[K, V](t: Table[K, V]): string =
   var parts: seq[string] = @[]
@@ -47,45 +58,44 @@ proc `$$`[K, V](t: Table[K, V]): string =
   return "{\n$1\n}" % >$ parts.join("\n")
 
 proc `$`*(node: Node): string =
-  if node.isLeaf:
-    return "code leaf: '$1'" % node.code
-  else:
-    var props = initTable[string, string]()
-    props["kind"] = if node.kind.isNil: "\"\"" else: "\"$1\"" % $node.kind
-    for key, val in node.nodeProps.pairs:
-      props[key] = >$ $val
-    for key, val in node.childProps.pairs:
-      props[key] = >$ $val
-    for key, val in node.codeProps.pairs:
-      props[key] = val
-
-    result = "{"
-    for key, val in props:
-      result &= "\n\t\"$1\": $2," % [key, val]
-    result &= "\n}"
+  var props = {"kind": node.kind}.toTable
+  for key, val in node.properties:
+    props[key] = $val
+  return $props
 
 proc `$$`*(node: Node): string =
+  # TODO
   return $node
 
-template isBranch*(node: Node): bool =
-  not node.isLeaf
 
-const
-  noNodeProps* = initTable[string, Node]()
-  noChildProps* = initTable[string, seq[Node]]()
-  noCodeProps* = initTable[string, string]()
+#~#
 
-proc newCode*(code: string): Node =
-  return Node(isLeaf: true, code: code, kind: nil, nodeProps: noNodeProps, childProps: noChildProps, codeProps: noCodeProps)
+proc newProperty*(text: string): Property =
+  return Property(kind: pkText, text: text)
 
-proc newBranch*(kind: string, nodeProps: Table[string, Node], childProps: Table[string, seq[Node]], codeProps: Table[string, string]): Node =
-  return Node(isLeaf: false, code: nil, kind: kind, nodeProps: nodeProps, childProps: childProps, codeProps: codeProps)
+proc newProperty*(node: Node): Property =
+  return Property(kind: pkNode, node: node)
 
-proc newBranch*(kind: string, nodeProps: Table[string, Node]): Node =
-  return newBranch(kind, nodeProps, noChildProps, noCodeProps)
+proc newProperty*(list: seq[Node]): Property =
+  return Property(kind: pkList, list: list)
 
-proc newBranch*(kind: string, childProps: Table[string, seq[Node]]): Node =
-  return newBranch(kind, noNodeProps, childProps, noCodeProps)
+proc newNode*(kind: string): Node =
+  return Node(kind: kind, properties: initTable[string, Property]())
 
-proc newBranch*(kind: string, codeProps: Table[string, string]): Node =
-  return newBranch(kind, noNodeProps, noChildProps, codeProps)
+proc newNode*(kind: string, props: Table[string, Property]): Node =
+  return Node(kind: kind, properties: props)
+
+proc newNode*(kind: string, props: openarray[(string, Property)]): Node =
+  return Node(kind: kind, properties: props.toTable)
+
+proc newNode*(kind: string, props: openarray[(string, string)]): Node =
+  let properties = @props.mapIt( (it[0], Property(kind: pkText, text: it[1])) ).toTable
+  return Node(kind: kind, properties: properties)
+
+proc newNode*(kind: string, props: openarray[(string, Node)]): Node =
+  let properties = @props.mapIt( (it[0], Property(kind: pkNode, node: it[1])) ).toTable
+  return Node(kind: kind, properties: properties)
+
+proc newNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
+  let properties = @props.mapIt( (it[0], Property(kind: pkList, list: it[1])) ).toTable
+  return Node(kind: kind, properties: properties)

@@ -34,11 +34,18 @@ Failing is done by raising a RuleError.
 
 type RuleVal* = object of RootObj
     head*: int
-    kind*: RuleReturnType  # But not rrtUnknown
 
-    codeVal*: string
-    listVal*: seq[inner_ast.Node]
-    nodeVal*: inner_ast.Node
+    case kind: RuleReturnType:
+    of rrtCode:
+        code*: string
+    of rrtList:
+        list*: seq[inner_ast.Node]
+    of rrtNode:
+        node*: inner_ast.Node
+    of rrtTypeless:
+        discard
+    of rrtUnknown:
+        discard  # Technically not allowed, but can't `assert false` here.
 
 proc `$`(s: seq[inner_ast.Node]): string =
     result = "@["
@@ -50,45 +57,38 @@ proc `$`(s: seq[inner_ast.Node]): string =
     result &= "]"
 
 proc `$`(rv: RuleVal): string =
-    if rv.kind == rrtCode:
-        return "head: $1; code: '$2'" % [$rv.head, rv.codeVal]
-    elif rv.kind == rrtList:
-        return "head: $1; list: $2" % [$rv.head, $rv.listVal]
-    elif rv.kind == rrtNode:
-        return "head: $1; node: $2" % [$rv.head, $rv.nodeVal]
-    else:
+    case rv.kind:
+    of rrtCode:
+        return "head: $1; code: '$2'" % [$rv.head, rv.code]
+    of rrtList:
+        return "head: $1; list: $2" % [$rv.head, $rv.list]
+    of rrtNode:
+        return "head: $1; node: $2" % [$rv.head, $rv.node]
+    of rrtTypeless, rrtUnknown:
         return "head: $1, kind: $2" % [$rv.head, $rv.kind]
 
-# For nodes with no semantic meaning
-# Is just a filler; no code should rely on nil-valued nodes being this value
-# This just makes sure $ and such play nicely with others
-const nilNode = inner_ast.newCode("")
+# TODO: Remove
+const nilNode = inner_ast.newNode("nil (if you're reading this, that's bad.)")
 
 converter toRuleVal(retVal: (int, string)): RuleVal =
     return RuleVal(
             head: retVal[0],
             kind: rrtCode,
-            codeVal: retVal[1],
-            listVal: @[],
-            nodeVal: nilNode,
+            code: retVal[1],
         )
 
 converter toRuleVal(retVal: (int, seq[inner_ast.Node])): RuleVal =
     return RuleVal(
             head: retVal[0],
             kind: rrtList,
-            codeVal: "",
-            listVal: retVal[1],
-            nodeVal: nilNode,
+            list: retVal[1],
         )
 
 converter toRuleval(retVal: (int, inner_ast.Node)): RuleVal =
     return RuleVal(
             head: retVal[0],
             kind: rrtNode,
-            codeVal: "",
-            listVal: @[],
-            nodeVal: retVal[1],
+            node: retVal[1],
         )
 
 #[
@@ -156,29 +156,27 @@ method translate(se: Sequence, context: LiltContext): Rule =
 
         var
             returnCode = ""
-            returnNodeNodeProps = initTable[string, inner_ast.Node]()
-            returnNodeChildProps = initTable[string, seq[inner_ast.Node]]()
-            returnNodeCodeProps = initTable[string, string]()
+            returnNodeProps = initTable[string, inner_ast.Property]()
 
         for node in se.contents:
             let returnVal = translate(node, context)(head, code, currentResult)
             head = returnVal.head
 
-            if se.returnType == rrtCode:
-                returnCode &= returnVal.codeVal
+            if returnVal.kind == rrtCode:
+                returnCode &= returnVal.code
 
             if node of outer_ast.Extension:
-                currentResult.list.add(returnVal.nodeVal)
+                currentResult.list.add(returnVal.node)
             elif node of outer_ast.Property:
                 let propNode = outer_ast.Property(node)
                 # Remember that properties return whatever the inner rule returns
                 case returnVal.kind:  # TODO Should be handled by predictive types, not runtime types
                 of rrtList:
-                    returnNodeChildProps[propNode.propName] = returnVal.listVal
+                    returnNodeProps[propNode.propName] = newProperty(returnVal.list)
                 of rrtNode:
-                    returnNodeNodeProps[propNode.propName] = returnVal.nodeVal
+                    returnNodeProps[propNode.propName] = newProperty(returnVal.node)
                 of rrtCode:
-                    returnNodeCodeProps[propNode.propName] = returnVal.codeVal
+                    returnNodeProps[propNode.propName] = newProperty(returnVal.code)
                 of rrtTypeless:
                     discard
                 of rrtUnknown:
@@ -190,7 +188,7 @@ method translate(se: Sequence, context: LiltContext): Rule =
             return (head, returnCode)
         elif se.returnType == rrtNode:
             let kind = se.ancestors.filterIt(it of Definition)[0].Definition.id
-            return (head, inner_ast.newBranch(kind, returnNodeNodeProps, returnNodeChildProps, returnNodeCodeProps))
+            return (head, inner_ast.newNode(kind, returnNodeProps))
         elif se.returnType == rrtList:
             assert isTopLevel
             return (head, currentResult.list)
@@ -275,9 +273,9 @@ method translate(op: OnePlus, context: LiltContext): Rule =
                 head = retVal.head
 
                 if op.returnType == rrtList:
-                    returnNodeList.add(retVal.nodeVal)  # No type checking needed since 
+                    returnNodeList.add(retVal.node)  # No type checking needed since 
                 elif op.returnType == rrtCode:
-                    returnCode &= retVal.codeVal
+                    returnCode &= retVal.code
 
                 inc(matchedCount)
             except RuleError:
@@ -305,7 +303,7 @@ method translate(g: Guard, context: LiltContext): Rule =
 
     return debugWrap(rule, g)
 
-method translate(p: Property, context: LiltContext): Rule =
+method translate(p: outer_ast.Property, context: LiltContext): Rule =
     let innerRule = translate(p.inner, context)
 
     proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =

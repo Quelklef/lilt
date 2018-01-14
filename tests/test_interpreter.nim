@@ -14,13 +14,25 @@ proc test(testName: string, code: string, rule: string, input: string, expected:
   let ctx: LiltContext = interpretAst(parsed)
   let ruleFunc: Rule = ctx[rule]
   let res: RuleVal = ruleFunc(0, input, newCurrentResult())
-  let resNode = res.nodeVal
+  let resNode = res.node
 
   if resNode != expected:
     echo "Failed"
     echo "Expected:\n$1\n\nBut got:\n$2" % [$$expected, $$resNode]
     assert false
   echo "Passed"
+
+# The following procs exist only to reduce syntactic bulk and
+# increase readibility of the following code.
+# When reading, they may be safely ignored.
+proc `~`(text: string): inner_ast.Property = 
+  return newProperty(text)
+
+proc `~`(node: inner_ast.Node): inner_ast.Property =
+  return newProperty(node)
+
+proc `~`(list: seq[inner_ast.Node]): inner_ast.Property =
+  return newProperty(list)
 
 test(
   "Interpreter test 1",
@@ -31,17 +43,17 @@ test(
   """,
   "sentenceNode",
   "several, words, in, a, sentence",
-  newBranch(
+  newNode(
     "sentenceNode",
     {
       "sentence": @[
-        newBranch("word", {"val": "several"}.toTable),
-        newBranch("word", {"val": "words"}.toTable),
-        newBranch("word", {"val": "in"}.toTable),
-        newBranch("word", {"val": "a"}.toTable),
-        newBranch("word", {"val": "sentence"}.toTable)
+        newNode("word", {"val": "several"}),
+        newNode("word", {"val": "words"}),
+        newNode("word", {"val": "in"}),
+        newNode("word", {"val": "a"}),
+        newNode("word", {"val": "sentence"}),
       ]
-    }.toTable
+    }
   )
 )
 
@@ -54,11 +66,9 @@ test(
   """,
   "consoWord",
   "bhjdsjkeaklj",
-  newBranch(
+  newNode(
     "consoWord",
-    {
-      "letters": "bhjdsjk"
-    }.toTable
+    {"letters": "bhjdsjk"}
   )
 )
 
@@ -71,11 +81,9 @@ test(
   """,
   "nVowels",
   "aeeoouuiaobbbbboisoso",
-  newBranch(
+  newNode(
     "nVowels",
-    {
-      "val": "aeeoouuiao"
-    }.toTable
+    {"val": "aeeoouuiao"}
   )
 )
 
@@ -89,18 +97,15 @@ test(
   """,
   "nFuncdef",
   "function multiply(argone, argtwo, argthree);",
-  newBranch(
+  newNode(
     "nFuncdef",
-    initTable[string, inner_ast.Node](),
     {
-      "args": @[
-        newBranch("nArg", {"id": "argone"}.toTable),
-        newBranch("nArg", {"id": "argtwo"}.toTable),
-        newBranch("nArg", {"id": "argthree"}.toTable)
-      ]
-    }.toTable,
-    {
-      "id": "multiply",
-    }.toTable
+      "args": ~ @[
+        newNode("nArg", {"id": "argone"}),
+        newNode("nArg", {"id": "argtwo"}),
+        newNode("nArg", {"id": "argthree"})
+      ],
+      "id": ~"multiply",
+    }
   )
 )
