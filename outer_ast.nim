@@ -34,7 +34,7 @@ type RuleReturnType* = enum
     rrtUnknown
     rrtTypeless
 
-    rrtCode
+    rrtText
     rrtNode
     rrtList
 

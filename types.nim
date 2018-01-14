@@ -9,8 +9,8 @@ import tables
 from misc import `{}`, BaseError
 
 # Used when types are invalid, for instance
-# `*rule` is invalid if `rule` returns rrtCode,
-# since lists of code may not be returned
+# `*rule` is invalid if `rule` returns rrtText,
+# since lists of text may not be returned
 type InvalidType* = object of Exception
 
 # Maps the name of rules to their type
@@ -37,8 +37,8 @@ method inferReturnType(guard: Guard, knownReturnTypes: KnownTypeRules) =
 method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
   let inner = op.inner
 
-  if inner.returnType == rrtCode:
-    op.returnType = rrtCode
+  if inner.returnType == rrtText:
+    op.returnType = rrtText
   elif inner.returnType == rrtNode:
     op.returnType = rrtList
   else:
@@ -51,10 +51,10 @@ method inferReturnType(opt: Optional, knownReturnTypes: KnownTypeRules) =
   opt.returnType = opt.inner.returnType
 
 method inferReturnType(se: Set, knownReturnTypes: KnownTypeRules) =
-  se.returnType = rrtCode
+  se.returnType = rrtText
 
 method inferReturnType(lit: Literal, knownReturnTypes: KnownTypeRules) =
-  lit.returnType = rrtCode
+  lit.returnType = rrtText
 
 method inferReturnType(re: Reference, knownReturnTypes: KnownTypeRules) =
   if re.id notin knownReturnTypes:
@@ -94,21 +94,21 @@ method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
   let isTopLevel = se.parent of Definition
 
   if not isTopLevel:
-    se.returnType = rrtCode
+    se.returnType = rrtText
   else:
     if children.mapIt(it of Extension).any(id):
       # Run same algo as outlined in inferReturnType(Program)
       let ext = children.filterIt(it of Extension)[0]
       let inner = Extension(ext).inner
 
-      if inner.returnType == rrtCode:
-        se.returnType = rrtCode
+      if inner.returnType == rrtText:
+        se.returnType = rrtText
       elif inner.returnType == rrtNode:
         se.returnType = rrtList
     elif children.mapIt(it of Property).any(id):
       se.returnType = rrtNode
     else:
-      se.returnType = rrtCode
+      se.returnType = rrtText
 
 method inferReturnType(def: Definition, knownReturnTypes: KnownTypeRules) =
   def.returnType = rrtTypeless
@@ -144,14 +144,14 @@ proc inferReturnTypes*(ast: Node) =
         for node in definition.descendants:
           if node of Extension:
             containsNoExtensionsAndNoProperties = false
-            # Extensions may be used in a rule that returns List, or Code.
+            # Extensions may be used in a rule that returns List, or Text.
             # This is because Extensions are used to concatenate lists and also
             # to concatenate strings.
             # As such, we can not immediately infer whether the rule's return type
-            # is list or code.
+            # is list or text.
             # We do know, however, if one Extension's inner node returns Node, then
-            # the rule is rrtList; if one Extension's inner node returns Code, then
-            # the rule is rrtCode.
+            # the rule is rrtList; if one Extension's inner node returns Text, then
+            # the rule is rrtText.
             let inner = Extension(node).inner
             # Infer the return type of the inner node as best we can right now
             var inferredInner = false
@@ -162,8 +162,8 @@ proc inferReturnTypes*(ast: Node) =
               discard
 
             if inferredInner:
-              if inner.returnType == rrtCode:
-                infferedReturnType = rrtCode
+              if inner.returnType == rrtText:
+                infferedReturnType = rrtText
                 inferredAtLeastOneDefiniton = true
               elif inner.returnType == rrtNode:
                 infferedReturnType = rrtList
@@ -176,9 +176,9 @@ proc inferReturnTypes*(ast: Node) =
               # Perhaps we can infer in the next pass
               discard
 
-      # If not rrtNode or rrtList, rrtCode.
+      # If not rrtNode or rrtList, rrtText.
       if infferedReturnType == rrtTypeless and containsNoExtensionsAndNoProperties:
-        infferedReturnType = rrtCode
+        infferedReturnType = rrtText
         inferredAtLeastOneDefiniton = true
 
       if infferedReturnType != rrtTypeless:

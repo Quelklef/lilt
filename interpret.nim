@@ -36,8 +36,8 @@ type RuleVal* = object of RootObj
     head*: int
 
     case kind: RuleReturnType:
-    of rrtCode:
-        code*: string
+    of rrtText:
+        text*: string
     of rrtList:
         list*: seq[inner_ast.Node]
     of rrtNode:
@@ -58,8 +58,8 @@ proc `$`(s: seq[inner_ast.Node]): string =
 
 proc `$`(rv: RuleVal): string =
     case rv.kind:
-    of rrtCode:
-        return "head: $1; code: '$2'" % [$rv.head, rv.code]
+    of rrtText:
+        return "head: $1; text: '$2'" % [$rv.head, rv.text]
     of rrtList:
         return "head: $1; list: $2" % [$rv.head, $rv.list]
     of rrtNode:
@@ -73,8 +73,8 @@ const nilNode = inner_ast.newNode("nil (if you're reading this, that's bad.)")
 converter toRuleVal(retVal: (int, string)): RuleVal =
     return RuleVal(
             head: retVal[0],
-            kind: rrtCode,
-            code: retVal[1],
+            kind: rrtText,
+            text: retVal[1],
         )
 
 converter toRuleVal(retVal: (int, seq[inner_ast.Node])): RuleVal =
@@ -155,15 +155,15 @@ method translate(se: Sequence, context: LiltContext): Rule =
         var head = phead
 
         var
-            returnCode = ""
+            returnText = ""
             returnNodeProps = initTable[string, inner_ast.Property]()
 
         for node in se.contents:
             let returnVal = translate(node, context)(head, code, currentResult)
             head = returnVal.head
 
-            if returnVal.kind == rrtCode:
-                returnCode &= returnVal.code
+            if returnVal.kind == rrtText:
+                returnText &= returnVal.text
 
             if node of outer_ast.Extension:
                 currentResult.list.add(returnVal.node)
@@ -175,8 +175,8 @@ method translate(se: Sequence, context: LiltContext): Rule =
                     returnNodeProps[propNode.propName] = newProperty(returnVal.list)
                 of rrtNode:
                     returnNodeProps[propNode.propName] = newProperty(returnVal.node)
-                of rrtCode:
-                    returnNodeProps[propNode.propName] = newProperty(returnVal.code)
+                of rrtText:
+                    returnNodeProps[propNode.propName] = newProperty(returnVal.text)
                 of rrtTypeless:
                     discard
                 of rrtUnknown:
@@ -184,8 +184,8 @@ method translate(se: Sequence, context: LiltContext): Rule =
             else:
                 discard
 
-        if se.returnType == rrtCode:
-            return (head, returnCode)
+        if se.returnType == rrtText:
+            return (head, returnText)
         elif se.returnType == rrtNode:
             let kind = se.ancestors.filterIt(it of Definition)[0].Definition.id
             return (head, inner_ast.newNode(kind, returnNodeProps))
@@ -250,7 +250,7 @@ method translate(o: Optional, context: LiltContext): Rule =
         except RuleError:
             if o.returnType == rrtList:
                 return (phead, newSeq[inner_ast.Node]())
-            elif o.returnType == rrtCode:
+            elif o.returnType == rrtText:
                 return (phead, "")
             elif o.returnType == rrtNode:
                 return (phead, nilNode)  # TODO this smells
@@ -265,7 +265,7 @@ method translate(op: OnePlus, context: LiltContext): Rule =
         var matchedCount = 0
 
         var returnNodeList: seq[inner_ast.Node] = @[]
-        var returnCode = ""
+        var returnText = ""
 
         while true:
             try:
@@ -274,8 +274,8 @@ method translate(op: OnePlus, context: LiltContext): Rule =
 
                 if op.returnType == rrtList:
                     returnNodeList.add(retVal.node)  # No type checking needed since 
-                elif op.returnType == rrtCode:
-                    returnCode &= retVal.code
+                elif op.returnType == rrtText:
+                    returnText &= retVal.text
 
                 inc(matchedCount)
             except RuleError:
@@ -286,8 +286,8 @@ method translate(op: OnePlus, context: LiltContext): Rule =
 
         if op.returnType == rrtList:
             return (head, returnNodeList)
-        elif op.returnType == rrtCode:
-            return (head, returnCode)
+        elif op.returnType == rrtText:
+            return (head, returnText)
 
     return debugWrap(rule, op)
 
