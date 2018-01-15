@@ -35,7 +35,10 @@ type
 
     Node* = object
         kind*: string
-        properties*: Table[string, Property]
+        # Want properties to be mutable for statements
+        properties*: TableRef[string, Property]
+
+proc `$`*(p: Property): string
 
 proc `==`*(prop: Property, other: Property): bool =
     if prop.kind != other.kind:
@@ -64,6 +67,27 @@ proc `$$`*(node: Node): string =
         props[key] = $val
     return $$props
 
+proc `$$`*(s: seq[Node]): string =
+    return "@[\n$1\n]" % >$ s.mapIt($$it).join("\n")
+
+proc `$`*(p: Property): string =
+    # TODO Should be `$$`
+
+    var val: string
+    case p.kind:
+    of pkText:
+        val = p.text
+    of pkNode:
+        val = $p.node
+    of pkList:
+        val = $$p.list
+
+    return "<\n$1\n>" % >$ (
+        "$1\n$2" % [
+            "kind: $1" % $p.kind,
+            "val: $1" % val
+        ]
+    )
 
 #~#
 
@@ -77,22 +101,29 @@ proc newProperty*(list: seq[Node]): Property =
     return Property(kind: pkList, list: list)
 
 proc newNode*(kind: string): Node =
-    return Node(kind: kind, properties: initTable[string, Property]())
+    return Node(kind: kind, properties: newTable[string, Property]())
 
-proc newNode*(kind: string, props: Table[string, Property]): Node =
+proc newNode*(kind: string, props: TableRef[string, Property]): Node =
     return Node(kind: kind, properties: props)
 
+proc newNode*(kind: string, props: Table[string, Property]): Node =
+    # No idea how this works, just paralleling code from table.nim source
+    var t: TableRef[string, Property]
+    new(t)
+    t[] = props
+    return Node(kind: kind, properties: t)
+
 proc newNode*(kind: string, props: openarray[(string, Property)]): Node =
-    return Node(kind: kind, properties: props.toTable)
+    return Node(kind: kind, properties: props.newTable)
 
 proc newNode*(kind: string, props: openarray[(string, string)]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: pkText, text: it[1])) ).toTable
+    let properties = @props.mapIt( (it[0], Property(kind: pkText, text: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 proc newNode*(kind: string, props: openarray[(string, Node)]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: pkNode, node: it[1])) ).toTable
+    let properties = @props.mapIt( (it[0], Property(kind: pkNode, node: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 proc newNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: pkList, list: it[1])) ).toTable
+    let properties = @props.mapIt( (it[0], Property(kind: pkList, list: it[1])) ).newTable
     return Node(kind: kind, properties: properties)

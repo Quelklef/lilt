@@ -1,5 +1,7 @@
 
 import ../parse
+import ../verify
+import ../types
 import ../inner_ast
 import ../outer_ast
 import ../interpret
@@ -10,11 +12,15 @@ import strutils
 proc test(testName: string, code: string, rule: string, input: string, expected: inner_ast.Node) =
   # Test must expect a node, not a list or code.
   echo "Running test '$1'" % testName
-  let parsed = parseProgram(code).Program
-  let ctx: LiltContext = interpretAst(parsed)
-  let ruleFunc: Rule = ctx[rule]
-  let res: RuleVal = ruleFunc(0, input, newCurrentResult())
-  let resNode = res.node
+  let ast = parseProgram(code).Program
+  let res: RuleVal = interpret(code, rule, input)
+
+  var resNode: inner_ast.Node
+  case res.kind:
+  of rrtNode:
+    resNode = res.node
+  else:
+    assert false
 
   if resNode != expected:
     echo "Failed"
@@ -61,7 +67,7 @@ test(
   "Guard test 1",
   """
   alpha: <abcdefghijklmnopqrstuvwxyz>
-  consonant: !<aeiou> alpha
+  consonant: !<aeiou> $alpha
   consoWord: letters=*consonant
   """,
   "consoWord",
@@ -76,7 +82,7 @@ test(
   "String extension 1",
   """
   vowel: <aeiou>
-  vowels: *&vowel
+  vowels: *$vowel
   nVowels: val=vowels
   """,
   "nVowels",
@@ -92,7 +98,7 @@ test(
   """
   tIdentif: +<abcdefghijklmnopqrstuvwxyz>
   nArg: id=tIdentif
-  lArgs: &nArg *[", " &nArg]
+  lArgs: ?&nArg *[", " &nArg]
   nFuncdef: "function " id=tIdentif "(" args=lArgs ");"
   """,
   "nFuncdef",

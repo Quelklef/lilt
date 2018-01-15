@@ -15,5 +15,21 @@ The nodes in the outer AST should generally be listed in the following order and
 	Literal
 	Set
 
+	Adjoinment
 	Extension
 	Property
+
+The outer AST nodes can be grouped as follows:
+	Misc
+		Prog, Def
+
+	Expressions
+		Seq, Ch, Ref, Opt, OP,
+		Lit, Set
+
+	Statements
+		Adj, Ext, Prop, Gu
+
+	(Optional can be a statement or an expression.
+	If it contains a node-returning rule, it's a statement;
+	otherwise, it's an expression.)

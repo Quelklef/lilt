@@ -12,7 +12,7 @@ proc `{}`*[T](s: seq[seq[T]], i: int): seq[T] =
 type BaseError* = object of Exception
   ## To be raised when calling a base method with no implementation
 
-proc `>$`*(s: string, indentText = "\t"): string =
+proc `>$`*(s: string, indentText = ".   "): string =
     ## Ident a block of text
     return s.split("\n").mapIt(indentText & it).join("\n")
 

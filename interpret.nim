@@ -33,9 +33,9 @@ Failing is done by raising a RuleError.
 ]#
 
 type RuleVal* = object of RootObj
-    head*: int
+    head: int
 
-    case kind: RuleReturnType:
+    case kind*: RuleReturnType:
     of rrtText:
         text*: string
     of rrtList:
@@ -68,43 +68,67 @@ proc `$`(rv: RuleVal): string =
         return "head: $1, kind: $2" % [$rv.head, $rv.kind]
 
 # TODO: Remove
-const nilNode = inner_ast.newNode("nil (if you're reading this, that's bad.)")
+let nilNode = inner_ast.newNode("nil (if you're reading this, that's bad.)")
 
 converter toRuleVal(retVal: (int, string)): RuleVal =
     return RuleVal(
-            head: retVal[0],
             kind: rrtText,
+            head: retVal[0],
             text: retVal[1],
         )
 
 converter toRuleVal(retVal: (int, seq[inner_ast.Node])): RuleVal =
     return RuleVal(
-            head: retVal[0],
             kind: rrtList,
+            head: retVal[0],
             list: retVal[1],
         )
 
 converter toRuleval(retVal: (int, inner_ast.Node)): RuleVal =
     return RuleVal(
-            head: retVal[0],
             kind: rrtNode,
+            head: retVal[0],
             node: retVal[1],
         )
 
+converter toRuleVal(retVal: int): RuleVal =
+    return RuleVal(
+        kind: rrtTypeless,
+        head: retVal,
+    )
+
 #[
-Extensions need to be able to add items to a node list
-instead of returning the items.
+Each new reference / run of a definiton's rule makes a new CurrentResult.
+This CurrentResult is what the statements in the rule modifies.
 ]#
 type CurrentResult* = ref object of RootObj
-    list: seq[inner_ast.Node]
+    case kind*: RuleReturnType  # TODO Shouldn't be rrt
+    of rrtText:
+        text*: string
+    of rrtNode:
+        node*: inner_ast.Node
+    of rrtList:
+        list*: seq[inner_ast.Node]
+    else:
+        # Shouldn't happen, but.
+        discard
+
+proc newCurrentResult*(kind: RuleReturnType): CurrentResult =
+    case kind:
+    of rrtText:
+        result = CurrentResult(kind: rrtText, text: "")
+    of rrtList:
+        result = CurrentResult(kind: rrtList, list: @[])
+    of rrtNode:
+        # The kind will be added in the top-leve sequence
+        result = CurrentResult(kind: rrtNode, node: inner_ast.newNode(""))
+    else:
+        assert false
 
 type Rule* = proc(head: int, code: string, currentResult: CurrentResult): RuleVal
 type RuleError = object of Exception
 
 type LiltContext* = TableRef[string, Rule]
-
-proc newCurrentResult*(): CurrentResult =
-    return CurrentResult(list: @[])
 
 const doDebug = false
 when not doDebug:
@@ -135,6 +159,7 @@ else:
             except RuleError as e:
                 debugPop("Failed: " & e.msg)
                 raise e
+            assert result.kind == node.returnType  # TODO should be in production code ..?
             debugPop("Success, head now: " & $result.head)
             return result
         return wrappedRule
@@ -146,52 +171,79 @@ method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
 method translate(re: Reference, context: LiltContext): Rule =
-    return context[re.id]
+    return proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+        # TODO: make not hacky
+        let prog = re.ancestors.filterIt(it of Program)[0]
+        let refRt = inferDefinitionReturnTypes(prog)[re.id]
+
+        # Each time a rule is referenced, it relies on its own current result
+        return context[re.id](phead, code, newCurrentResult(refRt))
 
 method translate(se: Sequence, context: LiltContext): Rule =
-    let isTopLevel = se.parent of outer_ast.Definition
+    let isTopLevel = se.parent of Definition
+    var rule: proc(phead: int, code: string, currentResult: CurrentResult): RuleVal
 
-    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
-        var head = phead
+    case se.returnType:
+    of rrtText:
+        # TODO: This should not be handled here.
+        # evidently, typing is insufficient
+        # Perhaps intents are a good idea
+        let hasAdj = se.descendants.filterIt(it of Adjoinment).len > 0
 
-        var
-            returnText = ""
-            returnNodeProps = initTable[string, inner_ast.Property]()
+        if hasAdj:
+            rule = proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+                var returnText = ""
+                var head = phead
 
-        for node in se.contents:
-            let returnVal = translate(node, context)(head, code, currentResult)
-            head = returnVal.head
+                for node in se.contents:
+                    head = translate(node, context)(head, code, currentResult).head
 
-            if returnVal.kind == rrtText:
-                returnText &= returnVal.text
+                return (head, currentResult.text)
 
-            if node of outer_ast.Extension:
-                currentResult.list.add(returnVal.node)
-            elif node of outer_ast.Property:
-                let propNode = outer_ast.Property(node)
-                # Remember that properties return whatever the inner rule returns
-                case returnVal.kind:  # TODO Should be handled by predictive types, not runtime types
-                of rrtList:
-                    returnNodeProps[propNode.propName] = newProperty(returnVal.list)
-                of rrtNode:
-                    returnNodeProps[propNode.propName] = newProperty(returnVal.node)
-                of rrtText:
-                    returnNodeProps[propNode.propName] = newProperty(returnVal.text)
-                of rrtTypeless:
-                    discard
-                of rrtUnknown:
-                    assert false
-            else:
-                discard
+        else:
+            rule = proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+                var returnText = ""
+                var head = phead
 
-        if se.returnType == rrtText:
-            return (head, returnText)
-        elif se.returnType == rrtNode:
-            let kind = se.ancestors.filterIt(it of Definition)[0].Definition.id
-            return (head, inner_ast.newNode(kind, returnNodeProps))
-        elif se.returnType == rrtList:
-            assert isTopLevel
+                for node in se.contents:
+                    let returnVal = translate(node, context)(head, code, currentResult)
+                    head = returnVal.head
+
+                    case returnVal.kind:
+                    of rrtText:
+                        returnText &= returnVal.text
+                    of rrtTypeless:
+                        discard
+                    else:
+                        assert false
+
+                return (head, returnText)
+
+    of rrtNode:
+        assert isTopLevel
+        rule = proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+            var head = phead
+
+            for node in se.contents:
+                let returnVal = translate(node, context)(head, code, currentResult)
+                head = returnVal.head
+
+            currentResult.node.kind = se.parent.Definition.id
+            return (head, currentResult.node)
+    
+    of rrtList:
+        assert isTopLevel
+        rule = proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+            var head = phead
+
+            for node in se.contents:
+                let returnVal = translate(node, context)(head, code, currentResult)
+                head = returnVal.head
+
             return (head, currentResult.list)
+
+    else:
+        assert false
 
     return debugWrap(rule, se)
 
@@ -243,23 +295,28 @@ node -> nilNode
 ]#
 method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
+    var rule: proc(phead: int, code: string, currentResult: CurrentResult): RuleVal
 
-    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
-        try:
-            return innerRule(phead, code, currentResult)
-        except RuleError:
-            if o.returnType == rrtList:
-                return (phead, newSeq[inner_ast.Node]())
-            elif o.returnType == rrtText:
-                return (phead, "")
-            elif o.returnType == rrtNode:
-                return (phead, nilNode)  # TODO this smells
+    if o.inner.returnType in [rrtTypeless, rrtNode]:
+        rule = proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+            return innerRule(phead, code, currentResult).head
+
+    else:
+        rule = proc(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+            try:
+                return innerRule(phead, code, currentResult)
+            except RuleError:
+                if o.returnType == rrtList:
+                    return (phead, newSeq[inner_ast.Node]())
+                elif o.returnType == rrtText:
+                    return (phead, "")
 
     return debugWrap(rule, o)
 
 method translate(op: OnePlus, context: LiltContext): Rule =
     let innerRule = translate(op.inner, context)
 
+    # TODO Should be several procs rather than one
     proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
         var head = phead
         var matchedCount = 0
@@ -272,10 +329,13 @@ method translate(op: OnePlus, context: LiltContext): Rule =
                 let retVal = innerRule(head, code, currentResult)
                 head = retVal.head
 
-                if op.returnType == rrtList:
-                    returnNodeList.add(retVal.node)  # No type checking needed since 
-                elif op.returnType == rrtText:
+                case op.returnType:
+                of rrtText:
                     returnText &= retVal.text
+                of rrtList:
+                    returnNodeList.add(retVal.node)
+                else:
+                    discard
 
                 inc(matchedCount)
             except RuleError:
@@ -296,9 +356,10 @@ method translate(g: Guard, context: LiltContext): Rule =
 
     proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
         try:
+            # TODO this is gonna get real funky with mutation/statements
             discard innerRule(head, code, currentResult)
         except RuleError:
-            return (head, "")  # TODO: Returning Code "" is a smell
+            return head
         raise newException(RuleError, "Code matched guard inner rule.")
 
     return debugWrap(rule, g)
@@ -307,16 +368,62 @@ method translate(p: outer_ast.Property, context: LiltContext): Rule =
     let innerRule = translate(p.inner, context)
 
     proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
-        return innerRule(head, code, currentResult)
+        let returnVal = innerRule(head, code, currentResult)
+
+        var crNode: inner_ast.Node
+        case currentResult.kind:
+        of rrtNode:
+            crNode = currentResult.node
+        else:
+            assert false
+
+        # TODO: Perhaps a ReturnVal.toProperty proc is in order?
+        case returnVal.kind:
+        of rrtText:
+            crNode.properties[p.propName] = inner_ast.newProperty(returnVal.text)
+        of rrtNode:
+            crNode.properties[p.propName] = inner_ast.newProperty(returnVal.node)
+        of rrtList:
+            crNode.properties[p.propName] = inner_ast.newProperty(returnVal.list)
+        of rrtTypeless, rrtUnknown:
+            assert false
+
+        return returnVal.head
     
     return debugWrap(rule, p)
+
+method translate(adj: Adjoinment, context: LiltContext): Rule =
+    let innerRule = translate(adj.inner, context)
+
+    proc rule(phead: int, code: string, currentResult: CurrentResult): RuleVal =
+        let returnVal = innerRule(phead, code, currentResult)
+
+        case returnVal.kind:
+        of rrtText:
+            currentResult.text &= returnVal.text
+        else:
+            assert false
+
+        return returnVal.head
+
+    return debugWrap(rule, adj)
+
 
 method translate(e: Extension, context: LiltContext): Rule =
     let innerRule = translate(e.inner, context)
     
     proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
-        return innerRule(head, code, currentResult)
-    
+        let returnVal = innerRule(head, code, currentResult)
+
+        case returnVal.kind:
+        of rrtNode:
+            currentResult.list.add(returnVal.node)
+        else:
+            assert false
+
+        return returnVal.head
+   
+
     return debugWrap(rule, e)
 
 proc addDefinition(def: Definition, context: LiltContext) =
@@ -334,11 +441,17 @@ method translate(prog: Program): LiltContext {.base.} =
         addDefinition(Definition(definition), context)
     return context
 
-proc interpretAst*(ast: outer_ast.Node): LiltContext =
+proc interpret*(code: string, ruleName: string, input: string): RuleVal =
+    let ast: outer_ast.Node = parse.parseProgram(code)
     verify.verify(ast)
     types.inferReturnTypes(ast)
     let res = translate(Program(ast))
-    return res
+    let rule = res[ruleName]
+    # TODO: This will be called once during type inference and once here.
+    # while this is a small inefficiency, it is perhaps worth it to change
+    let definitionTypes: Table[string, RuleReturnType] = inferDefinitionReturnTypes(ast)
+    # TODO: The following line won't ensure that the rule consumes all code
+    return rule(0, input, newCurrentResult(definitionTypes[ruleName]))
 
 when isMainModule:
     const code = r"""
@@ -346,37 +459,11 @@ when isMainModule:
     word: val=*<abcdefghijklmnopqrstuvwxyz>
     """
 
-    const json = """several, words, in, a, sentence"""
+    block:
+        let ast = parseProgram(code)
+        verify(ast)
+        inferReturnTypes(ast)
+        echo $$ast
 
-    # Parse program
-    let programAst: outer_ast.Node = parse.parseProgram(code)
-
-    # Verify AST
-    verify.verify(programAst)
-
-    # Infer types
-    types.inferReturnTypes(programAst)
-
-    echo $$programAst
-
-    # Translate to runnable Nim constructs
-    let res = translate(Program(programAst))
-
-    # Run program
-    echo res["sentence"](0, json, newCurrentResult())
-
-    # Test word
-    #echo res["word"](0, "wgorggnw  ", newCurrentResult())
-
-    when true:
-        block:
-            let code2 = """
-            test: *<abc>
-            node: val=test
-            """
-            let ast2 = parse.parseProgram(code2)
-            verify.verify(ast2)
-            types.inferReturnTypes(ast2)
-            let res = translate(Program(ast2))
-            let v = res["node"](0, "bcbba", newCurrentResult())
-            echo v
+    #echo $$interpret(code, "word", "test").node
+    echo $$interpret(code, "sentence", "several, words, in, a, sentence").list

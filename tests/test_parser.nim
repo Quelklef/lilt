@@ -57,6 +57,23 @@ test(
   ])
 )
 
+test(
+  "Adjoinment 1",
+  """
+  handleString: "\"" $*char "\""
+  """,
+  newProgram(@[
+    newDefinition(
+      "handleString",
+      newSequence(@[
+        newLiteral("\""),
+        newAdjoinment(newOptional(newOnePlus(newReference("char")))),
+        newLiteral("\"")
+      ])
+    ).Node
+  ])
+)
+
 #[
 test(
   "Comments 1",

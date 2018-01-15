@@ -126,11 +126,11 @@ funcDeclaration: "func " id=identifier "(" params=paramList ");"
 		},
 		{
 			"kind": "param",
-			"id": "a",
+			"id": "b",
 		},
 		{
 			"kind": "param",
-			"id": "a"
+			"id": "c"
 		}
 	]
 }

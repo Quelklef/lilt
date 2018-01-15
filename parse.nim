@@ -292,6 +292,16 @@ proc parseExtension(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newExtension(innerNode))
 
+proc parseAdjoinment(phead: int, code: string): ParserValue {.debug.} =
+    var head = phead
+
+    head = head.consumeString("$", code)
+
+    var innerNode: outer_ast.Node
+    (head, innerNode) = head.parseExpression(code)
+
+    return (head, outer_ast.newAdjoinment(innerNode))
+
 proc parseProperty(phead: int, code: string): ParserValue {.debug.} =
     var head = phead
 
@@ -310,6 +320,7 @@ proc parseExpression(phead: int, code: string): ParserValue {.debug.} =
         Parser(parseProperty), # Must go before parseReference because starts with an identifier
         Parser(parseReference),
         Parser(parseExtension),
+        Parser(parseAdjoinment),
         Parser(parseLiteral),
         Parser(parseSet),
         Parser(parseOptional),
@@ -446,3 +457,4 @@ expose(parseOptional)
 expose(parseSet)
 expose(parseLiteral)
 expose(parseReference)
+expose(parseAdjoinment)

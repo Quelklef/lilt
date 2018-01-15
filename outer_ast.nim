@@ -37,7 +37,6 @@ nodeProps, or listProps.
 import sequtils
 import strutils
 import tables
-import typetraits
 
 import misc
 
@@ -53,9 +52,9 @@ type Node* = ref object of RootObj
     returnType*: RuleReturnType
     parent*: Node
 
-proc colloqType(n: Node): string =
+method typeName(n: Node): string {.base.} =
     # Returns the name of the type of the node
-    return n.type.name
+    return "Node"
 
 method textProps*(n: Node): Table[string, string] {.base.} =
     return initTable[string, string]()
@@ -66,24 +65,33 @@ method nodeProps*(n: Node): Table[string, Node] {.base.} =
 method listProps*(n: Node): Table[string, seq[Node]] {.base.} =
     return initTable[string, seq[Node]]()
 
-proc `$`*(node: Node): string  # Forward dec. for following proc
-proc getPropsAsStrings(node: Node): Table[string, string] =
-    # Return all properties of a node, as strings
-    # returns property "kind"
-    var props = {"kind": node.colloqType}.toTable
+proc `$`*(node: Node): string =
+    var props = {"kind": node.typeName}.toTable
     for key, val in node.textProps:
         props[key] = val
     for key, val in node.nodeProps:
         props[key] = $val
     for key, val in node.listProps:
         props[key] = $val
-    return props
+    return $props
 
-proc `$`*(node: Node): string =
-    return $node.getPropsAsStrings
+proc `$$`*(node: Node): string
+proc `$$`(list: seq[Node]): string =
+    result = "@[\n"
+    for node in list:
+        result &= >$ $$node & "\n"
+    result &= "]"
 
 proc `$$`*(node: Node): string =
-    return $$node.getPropsAsStrings
+    result = "{ kind: $1" % node.typeName
+    result &= "\nrrt: $1" % $node.returnType
+    for key, val in node.textProps:
+        result &= "\n$1: $2" % [key, val]
+    for key, val in node.nodeProps:
+        result &= "\n$1:\n$2" % [key, >$ $$val]
+    for key, val in node.listProps:
+        result &= "\n$1: $2" % [key, $$val]
+    result &= " }"
 
 proc children*(n: Node): seq[Node] =
     result = @[]
@@ -101,9 +109,9 @@ proc isLeaf*(n: Node): bool =
 proc `==`*(node: Node, other: Node): bool =
     # NOTE: This does not verifiy that the two nodes' have matching
     # return type. This is intentional.
-    # TODO: This should not rely on .colloqType.
+    # TODO: This should not rely on .typeName.
     # There must be another way to check if two nodes are of the same type.
-    return node.colloqType == other.colloqType and
+    return node.typeName == other.typeName and
         node.textProps == other.textProps and
         node.nodeProps == other.nodeProps and
         node.listProps == other.listProps
@@ -171,6 +179,8 @@ proc newProgram*(dfns: seq[Node]): Program =
 method listProps*(p: Program): auto =
     return {"definitions": p.definitions}.toTable
 
+method typeName(p: Program): string = "Program"
+
 # Reference
 
 type Reference* = ref object of Node
@@ -181,6 +191,8 @@ proc newReference*(id: string): Reference =
 
 method textProps*(r: Reference): auto =
     return {"id": r.id}.toTable
+
+method typeName(r: Reference): string = "Reference"
 
 # Definition
 
@@ -199,6 +211,8 @@ method textProps*(def: Definition): auto =
 method nodeProps*(def: Definition): auto =
     return {"body": def.body}.toTable
 
+method typeName(d: Definition): string = "Definition"
+
 # Sequence
 
 type Sequence* = ref object of Node
@@ -212,6 +226,8 @@ proc newSequence*(cts: seq[Node]): Sequence =
 
 method listProps*(s: Sequence): auto =
     return {"contents": s.contents}.toTable
+
+method typeName(s: Sequence): string = "Sequence"
 
 # Choice
 
@@ -227,6 +243,8 @@ proc newChoice*(cts: seq[Node]): Choice =
 method listProps*(c: Choice): auto =
     return {"contents": c.contents}.toTable
 
+method typeName(c: Choice): string = "Choice"
+
 # Literal
 
 type Literal* = ref object of Node
@@ -238,6 +256,8 @@ proc newLiteral*(text: string): Literal =
 method textProps*(li: Literal): auto =
     return {"text": li.text}.toTable
 
+method typeName(li: Literal): string = "Literal"
+
 # Set
 
 type Set* = ref object of Node
@@ -248,6 +268,8 @@ proc newSet*(charset: string): Set =
 
 method textProps*(s: Set): auto =
     return {"characters": s.charset}.toTable
+
+method typeName(s: Set): string = "Set"
 
 # Optional
 
@@ -262,6 +284,8 @@ proc newOptional*(inner: Node): Optional =
 method nodeProps*(o: Optional): auto =
     return {"inner": o.inner}.toTable
 
+method typeName(o: Optional): string = "Optional"
+
 # OnePlus
 
 type OnePlus* = ref object of Node
@@ -274,6 +298,8 @@ proc newOnePlus*(inner: Node): OnePlus =
 
 method nodeProps*(op: OnePlus): auto =
     return {"inner": op.inner}.toTable
+
+method typeName(op: OnePlus): string = "OnePlus"
 
 # Guard
 
@@ -288,6 +314,23 @@ proc newGuard*(inner: Node): Guard =
 method nodeProps*(guard: Guard): auto =
     return {"inner": guard.inner}.toTable
 
+method typeName(g: Guard): string = "Guard"
+
+# Adjoinment
+
+type Adjoinment* = ref object of Node
+    inner*: Node
+
+proc newAdjoinment*(inner: Node): Adjoinment =
+    let a = Adjoinment(inner: inner)
+    inner.parent = a
+    return a
+
+method nodeProps*(adj: Adjoinment): auto =
+    return {"inner": adj.inner}.toTable
+
+method typeName(adj: Adjoinment): string = "Adjoinment"
+
 # Extension
 
 type Extension* = ref object of Node
@@ -300,6 +343,8 @@ proc newExtension*(inner: Node): Extension =
 
 method nodeProps*(ext: Extension): auto =
     return {"inner": ext.inner}.toTable
+
+method typeName(ext: Extension): string = "Extension"
 
 # Property
 
@@ -317,3 +362,5 @@ method textprops*(prop: Property): auto =
 
 method nodeProps*(prop: Property): auto =
     return {"inner": prop.inner}.toTable
+
+method typeName(p: Property): string = "Property"
