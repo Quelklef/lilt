@@ -5,13 +5,15 @@ Lilt is a language for writing parsers.
 
 Lilt, in fact, stands for:
 
+```
 L - Super
-
 I - Duper
-
 L - Easy
-
 T - Parsing
+```
+
+A finished piece of Lilt code acts as a function which takes some text and generates
+an AST from it.
 
 Before explaining what Lilt is and how it works, some disambiguation should be done.
 Lilt is a language, and is therefore written in code. This code is parsed and interpreted.
@@ -27,7 +29,7 @@ In order to mitigate confusion, I will adapt the following convention for this r
 3. The parser which parses Lilt code will be called the "parser".
 4. The parser which parses non-Lilt code will be called the "AST generator" or just "generator".
 5. The Lilt AST will be called the "AST",
-6. The Non-Lilt AST will be called the "generated tree" or "Tree".
+6. The Non-Lilt AST will be called the "generated tree" or "tree".
 
 As such, a piece of Lilt code is run through a parser and interpreted as a generator which acts on text.
 
@@ -38,9 +40,9 @@ A rule is given some text, and does a few things:
 
 - The rule consumes part of the text
 - The rule returns one of:
-	- A Node on the generated tree,
-	- A piece of text (referred to as Code in the source),
-	- A List of Nodes.
+	- A node on the generated tree,
+	- A piece of text,
+	- A list of nodes.
 - The rule may instead _fail_, consuming no text and returning nothing.
 
 A rule may be, for instance, "consume the text 'banana' exactly and return it".
@@ -138,17 +140,9 @@ funcDeclaration: "func " id=identifier "(" params=paramList ");"
 
 In this manner we have successfully parsed the tree for a function declaration.
 
-All the rules are spelled out after this section, but here is a cheat sheet:
+***
 
-- `"text"`: Exactly match "text"
-- `<abcd>`: Match "a", "b", "c", or "d"
-- `?rule`: Optionally match rule
-- `+rule`: Match rule once or more
-- `*rule`: Match rule zero or more times
-- `!rule`: Fail if rule is matched
-- `[rule]`: Like parenthesis in other languages
-- `rule | rule`: Match either rule
-- `rule rule`: Match both rules in a row
+### Formal Specification
 
 #### Literals
 
@@ -165,6 +159,17 @@ For instance, `<abcd>` matches `a`, `b`, `c`, and `d`.
 
 Sets share the literal escape codes (besides `\"`); additionally,
 `<` and `>` may be in set expressions but must be escaped.
+
+#### Reference
+
+A reference is as you'd expect, it calls another defined rule.
+
+Ex:
+
+```
+vowel: <aeiou>
+vowelString: *vowel
+```
 
 #### Optional
 
@@ -184,6 +189,21 @@ For instance,`*<abc>` matches `aaa`, `abb`, `acccb`, etc.
 
 Plus expressions begin with a `+` and match 1 or more of the inside expression.
 
+#### Guard
+
+A guard matches any text that _doesn't_ match the inner expression.
+
+A guard consumes no code.
+
+It is useful to construct set differences, for instance:
+
+```
+lower: <abcdefghijklmnopqrstuvwxyz>
+consonant: !<aeiou> lower
+```
+
+Guard expressions are difficult to read and should be used sparingly.
+
 #### Brackets
 
 Brackets begin and end with `[` and `]` and are analogous to parenthesis in other languages.
@@ -202,17 +222,72 @@ So, `"banana" | "phone"` matches both `banana` and `phone`.
 
 Choices short-circuit; they will choose the first matching rule.
 
-#### Guard
+#### Adjoinment
 
-A guard matches any text that _doesn't_ match the inner expression.
+An adjoinment looks like `$rule` appends text to the result of a rule.
 
-A guard consumes no code.
-
-It is useful to construct set differences, for instance:
-
+Ex:
 ```
-lower: <abcdefghijklmnopqrstuvwxyz>
-consonant: !<aeiou> lower
+char: <abc>
+stringValue: "\"" $*char "\""
 ```
 
-Guard expressions are difficult to read and should be used sparingly.
+`stringValue` applied to `"aaabbbccc"` will return `aaabbbccc` (notice no quotes).
+
+If a definition has no adjoinments in it, no properties, and no extensions, it will, by default,
+return all code consumed. As such, It can be thought that the "default" is for a rule to be an
+adjoinment.
+
+#### Property
+
+A property looks like `propertyName=rule` and adds a property with name
+`propertyName` and value `rule` to the resultant node.
+
+Ex:
+```
+vowel: <aeiou>
+vowelNode: string=*vowel
+```
+
+`vowelNode` applied to `aooui` returns the node:
+
+```JSON
+{
+	"kind": "vowelNode",
+	"string": "aooui"
+}
+```
+
+#### Extension
+
+An extension looks like `&rule` and appends the result of `rule` (which must be a node) to
+the resultant list
+
+Ex:
+```
+exNode: text="banana"
+multipleBananas: *&exNode
+```
+
+`multipleBananas` applied to "bananabananabananabanana" returns the node list:
+
+```JSON
+[
+	{
+		"kind": "exNode",
+		"text": "banana"
+	},
+	{
+		"kind": "exNode",
+		"text": "banana"
+	},
+	{
+		"kind": "exNode",
+		"text": "banana"
+	},
+	{
+		"kind": "exNode",
+		"text": "banana"
+	}
+]
+```

@@ -25,3 +25,7 @@ proc `$$`*[K, V](t: Table[K, V]): string =
     for key in t.keys:
         parts.add("$1: $2" % [$key, $t[key]])
     return "{\n$1\n}" % >$ parts.join("\n")
+
+iterator reversed[T](s: seq[T]): T =
+    for idx in countdown(s.len - 1, 0):
+        yield s[idx]

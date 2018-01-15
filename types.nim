@@ -13,10 +13,6 @@ type TypeError* = object of Exception
 # Maps the name of rules to their type
 type KnownTypeRules = Table[string, outer_ast.RuleReturnType]
 
-iterator reversed[T](s: seq[T]): T =
-    for idx in countdown(s.len - 1, 0):
-        yield s[idx]
-
 method inferReturnType(node: Node, knownReturnTypes: KnownTypeRules) {.base.} =
     raise newException(BaseError, "Cannot infer return type for base type Node. Value given: $1" % $node)
 
