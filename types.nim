@@ -6,7 +6,7 @@ import outer_ast
 import sequtils
 import strutils
 import tables
-from misc import `{}`, BaseError
+from misc import `{}`, BaseError, reversed
 
 type TypeError* = object of Exception
 
@@ -47,8 +47,8 @@ method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
 method inferReturnType(opt: Optional, knownReturnTypes: KnownTypeRules) =
     if opt.inner.returnType == rrtNode:
         opt.returnType = rrtTypeless
-
-    opt.returnType = opt.inner.returnType
+    else:
+        opt.returnType = opt.inner.returnType
 
 method inferReturnType(se: Set, knownReturnTypes: KnownTypeRules) =
     se.returnType = rrtText

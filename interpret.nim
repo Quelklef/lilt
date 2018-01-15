@@ -306,10 +306,13 @@ method translate(o: Optional, context: LiltContext): Rule =
             try:
                 return innerRule(phead, code, currentResult)
             except RuleError:
-                if o.returnType == rrtList:
+                case o.returnType:
+                of rrtList:
                     return (phead, newSeq[inner_ast.Node]())
-                elif o.returnType == rrtText:
+                of rrtText:
                     return (phead, "")
+                else:
+                    assert false
 
     return debugWrap(rule, o)
 
@@ -344,10 +347,13 @@ method translate(op: OnePlus, context: LiltContext): Rule =
         if matchedCount == 0:
             raise newException(RuleError, "Expected code to match at least once.")
 
-        if op.returnType == rrtList:
+        case op.returnType:
+        of rrtList:
             return (head, returnNodeList)
-        elif op.returnType == rrtText:
+        of rrtText:
             return (head, returnText)
+        else:
+            assert false
 
     return debugWrap(rule, op)
 
@@ -356,7 +362,6 @@ method translate(g: Guard, context: LiltContext): Rule =
 
     proc rule(head: int, code: string, currentResult: CurrentResult): RuleVal =
         try:
-            # TODO this is gonna get real funky with mutation/statements
             discard innerRule(head, code, currentResult)
         except RuleError:
             return head
