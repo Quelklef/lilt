@@ -1,0 +1,19 @@
+
+The nodes in the outer AST should generally be listed in the following order and grouped as follows:
+	Program
+
+	Definition
+
+	Sequence
+	Choice
+
+	Reference
+	Optional
+	OnePlus
+	Guard
+
+	Literal
+	Set
+
+	Extension
+	Property

@@ -9,26 +9,37 @@ has its own type.
 They should all inherit from Node and should
 fulfill the following contract:
 
-method `$`*: string
-    String representation of the node
-
-method `$$`*: string
-    Pretty string representation of the node,
-    i.e. with indentation and stuff
-
 method children: seq[Node]
     return all children of the node
     if no children, return @[]
 
+method textProps: Table[string, string]
+    return all string properties
+
+method nodeProps: Table[string, Node]
+    return all node properties
+
+method listProps: Table[string, seq[Node]]
+    take a guess
+
+
 Note that everything is a "ref object of" rather than an "object of"
 This is because it's needed for the polymorphism to work
 for some reason...
-]#
 
+All properties of subtypes of Node should be of type
+Node, string, or seq[Node]
+and should thus be returned in textProps,
+nodeProps, or listProps.
+
+]#
 
 import sequtils
 import strutils
-from misc import BaseError, `>$`
+import tables
+import typetraits
+
+import misc
 
 type RuleReturnType* = enum
     rrtUnknown
@@ -42,16 +53,44 @@ type Node* = ref object of RootObj
     returnType*: RuleReturnType
     parent*: Node
 
-method `$`*(n: Node): string {.base, noSideEffect.} =
-    # For some reason this base method needs to be implemented
-    # for the non-base methods to work properly
-    raise newException(BaseError, "")
+proc colloqType(n: Node): string =
+    # Returns the name of the type of the node
+    return n.type.name
 
-method `$$`*(n: Node): string {.base.} =
-    raise newException(BaseError, "")
+method textProps*(n: Node): Table[string, string] {.base.} =
+    return initTable[string, string]()
 
-method children*(n: Node): seq[Node] {.base.} =
-    raise newException(BaseError, "")
+method nodeProps*(n: Node): Table[string, Node] {.base.} =
+    return initTable[string, Node]()
+
+method listProps*(n: Node): Table[string, seq[Node]] {.base.} =
+    return initTable[string, seq[Node]]()
+
+proc `$`*(node: Node): string  # Forward dec. for following proc
+proc getPropsAsStrings(node: Node): Table[string, string] =
+    # Return all properties of a node, as strings
+    # returns property "kind"
+    var props = {"kind": node.colloqType}.toTable
+    for key, val in node.textProps:
+        props[key] = val
+    for key, val in node.nodeProps:
+        props[key] = $val
+    for key, val in node.listProps:
+        props[key] = $val
+    return props
+
+proc `$`*(node: Node): string =
+    return $node.getPropsAsStrings
+
+proc `$$`*(node: Node): string =
+    return $$node.getPropsAsStrings
+
+proc children*(n: Node): seq[Node] =
+    result = @[]
+    for node in n.nodeProps.values:
+        result.add(node)
+    for list in n.listProps.values:
+        result.extend(list)
 
 proc isBranch*(n: Node): bool =
     return n.children.len > 0
@@ -59,12 +98,15 @@ proc isBranch*(n: Node): bool =
 proc isLeaf*(n: Node): bool =
     return not n.isBranch
 
-method `==`*(node: Node, other: Node): bool {.base, noSideEffect.} =
-    raise newException(BaseError, "Cannot use `==` with base type Node. Given: $1" % $node)
-
-template extend[T](s1: seq[T], s2: seq[T]) =
-  for item in s2:
-    s1.add(item)
+proc `==`*(node: Node, other: Node): bool =
+    # NOTE: This does not verifiy that the two nodes' have matching
+    # return type. This is intentional.
+    # TODO: This should not rely on .colloqType.
+    # There must be another way to check if two nodes are of the same type.
+    return node.colloqType == other.colloqType and
+        node.textProps == other.textProps and
+        node.nodeProps == other.nodeProps and
+        node.listProps == other.listProps
 
 proc descendants*(node: Node): seq[Node] =
   ## Recursively iterates through all descendants of given node.
@@ -126,23 +168,8 @@ proc newProgram*(dfns: seq[Node]): Program =
         dfn.parent = p
     return p
 
-method `$`*(p: Program): string =
-    var st = ""
-    for def in p.definitions:
-        st &= " " & $def
-    return "[PROGRAM$1]" % st
-
-method `$$`*(p: Program): string =
-    var inners: seq[string] = @[]
-    for def in p.definitions:
-        inners.add($$def)
-    return "$1 PROGRAM\n$2" % [$p.returnType, >$ inners.join("\n")]
-
-method children*(p: Program): seq[Node] =
-    return p.definitions
-
-method `==`*(prog: Program, other: Node): bool =
-    return other of Program and prog.definitions == other.Program.definitions
+method listProps*(p: Program): auto =
+    return {"definitions": p.definitions}.toTable
 
 # Reference
 
@@ -152,17 +179,8 @@ type Reference* = ref object of Node
 proc newReference*(id: string): Reference =
     return Reference(id: id)
 
-method `$`*(r: Reference): string =
-    return "[REF '$1']" % r.id
-
-method `$$`*(r: Reference): string =
-    return "$1 REFERENCE '$2'" % [$r.returnType, r.id]
-
-method children*(r: Reference): seq[Node] =
-    return @[]
-
-method `==`*(r: Reference, other: Node): bool =
-    return other of Reference and r.id == other.Reference.id
+method textProps*(r: Reference): auto =
+    return {"id": r.id}.toTable
 
 # Definition
 
@@ -175,22 +193,11 @@ proc newDefinition*(id: string, body: Node): Definition =
     body.parent = d
     return d
 
-method `$`*(d: Definition): string =
-    return "[DEF '$1' $2]" % [$d.id, $d.body]
+method textProps*(def: Definition): auto =
+    return {"id": def.id}.toTable
 
-method `$$`*(d: Definition): string =
-    return "$1 DEFINITION '$2'\n$3" % [$d.returnType, $d.id, >$ $$d.body]
-
-method children*(d: Definition): seq[Node] =
-    return @[d.body]
-
-method `==`*(def: Definition, other: Node): bool =
-    if not (other of Definition):
-        return false
-
-    let otherDef = Definition(other)
-    return def.id == otherDef.id and
-        def.body == otherDef.body
+method nodeProps*(def: Definition): auto =
+    return {"body": def.body}.toTable
 
 # Sequence
 
@@ -203,23 +210,8 @@ proc newSequence*(cts: seq[Node]): Sequence =
         node.parent = s
     return s
 
-method `$`*(s: Sequence): string =
-    var st = ""
-    for n in s.contents:
-        st &= " " & $n
-    return "<SEQ$1>" % st
-
-method `$$`*(s: Sequence): string =
-    var inners: seq[string] = @[]
-    for n in s.contents:
-        inners.add($$n)
-    return "$1 SEQUENCE\n$2" % [$s.returnType, >$ inners.join("\n")]
-
-method children*(s: Sequence): seq[Node] =
-    return s.contents
-
-method `==`*(se: Sequence, other: Node): bool =
-    return other of Sequence and se.contents == other.Sequence.contents
+method listProps*(s: Sequence): auto =
+    return {"contents": s.contents}.toTable
 
 # Choice
 
@@ -232,23 +224,8 @@ proc newChoice*(cts: seq[Node]): Choice =
         node.parent = c
     return c
 
-method `$`*(c: Choice): string =
-    var st = ""
-    for n in c.contents:
-        st &= " " & $n
-    return "<CHOICE$1>" % st
-
-method `$$`(c: Choice): string =
-    var inners: seq[string] = @[]
-    for n in c.contents:
-        inners.add($$n)
-    return "$1 CHOICE\n$2" % [$c.returnType, >$ inners.join("\n")]
-
-method children*(c: Choice): seq[Node] =
-    return c.contents
-
-method `==`*(choice: Choice, other: Node): bool =
-    return other of Choice and choice.contents == other.Choice.contents
+method listProps*(c: Choice): auto =
+    return {"contents": c.contents}.toTable
 
 # Literal
 
@@ -258,17 +235,8 @@ type Literal* = ref object of Node
 proc newLiteral*(text: string): Literal =
     return Literal(text: text)
 
-method `$`*(li: Literal): string =
-    return "[LIT '$1']" % li.text
-
-method `$$`*(li: Literal): string =
-    return "$1 LITERAL '$2'" % [$li.returnType, li.text]
-
-method children*(li: Literal): seq[Node] =
-    return @[]
-
-method `==`*(li: Literal, other: Node): bool =
-    return other of Literal and li.text == other.Literal.text
+method textProps*(li: Literal): auto =
+    return {"text": li.text}.toTable
 
 # Set
 
@@ -278,17 +246,8 @@ type Set* = ref object of Node
 proc newSet*(charset: string): Set =
     return Set(charset: charset)
 
-method `$`*(s: Set): string =
-    return "[SET '$1']" % s.charset
-
-method `$$`*(s: Set): string =
-    return "$1 SET '$2'" % [$s.returnType, s.charset]
-
-method children*(s: Set): seq[Node] =
-    return @[]
-
-method `==`*(se: Set, other: Node): bool =
-    return other of Set and se.charset == other.Set.charset
+method textProps*(s: Set): auto =
+    return {"characters": s.charset}.toTable
 
 # Optional
 
@@ -300,17 +259,8 @@ proc newOptional*(inner: Node): Optional =
     inner.parent = o
     return o
 
-method `$`*(o: Optional): string =
-    return "[OPTIONAL $1]" % $o.inner
-
-method `$$`*(o: Optional): string =
-    return "$1 OPTIONAL\n$2" % [$o.returnType, >$ $$o.inner]
-
-method children*(o: Optional): seq[Node] =
-    return @[o.inner]
-
-method `==`*(opt: Optional, other: Node): bool =
-    return other of Optional and opt.inner == other.Optional.inner
+method nodeProps*(o: Optional): auto =
+    return {"inner": o.inner}.toTable
 
 # OnePlus
 
@@ -322,17 +272,8 @@ proc newOnePlus*(inner: Node): OnePlus =
     inner.parent = op
     return op
 
-method `$`*(op: OnePlus): string =
-    return "[ONEPLUS $1]" % $op.inner
-
-method `$$`*(op: OnePlus): string =
-    return "$1 ONEPLUS\n$2" % [$op.returnType, >$ $$op.inner]
-
-method children(op: OnePlus): seq[Node] =
-    return @[op.inner]
-
-method `==`*(op: OnePlus, other: Node): bool =
-    return other of OnePlus and op.inner == other.OnePlus.inner
+method nodeProps*(op: OnePlus): auto =
+    return {"inner": op.inner}.toTable
 
 # Guard
 
@@ -344,17 +285,8 @@ proc newGuard*(inner: Node): Guard =
     inner.parent = g
     return g
 
-method `$`*(g: Guard): string =
-    return "[GUARD $1]" % $g.inner
-
-method `$$`*(g: Guard): string =
-    return "$1 GUARD\n$2" % [$g.returnType, >$ $$g.inner]
-
-method children*(g: Guard): seq[Node] =
-    return @[g.inner]
-
-method `==`*(guard: Guard, other: Node): bool =
-    return other of Guard and guard.inner == other.Guard.inner
+method nodeProps*(guard: Guard): auto =
+    return {"inner": guard.inner}.toTable
 
 # Extension
 
@@ -366,17 +298,8 @@ proc newExtension*(inner: Node): Extension =
     inner.parent = e
     return e
 
-method `$`*(e: Extension): string =
-    return "[EXT $1]" % $e.inner
-
-method `$$`*(e: Extension): string =
-    return "$1 EXTENSION\n$2" % [$e.returnType, >$ $$e.inner]
-
-method children*(e: Extension): seq[Node] =
-    return @[e.inner]
-
-method `==`*(ext: Extension, other: Node): bool =
-    return other of Extension and ext.inner == other.Extension.inner
+method nodeProps*(ext: Extension): auto =
+    return {"inner": ext.inner}.toTable
 
 # Property
 
@@ -389,19 +312,8 @@ proc newProperty*(name: string, inner: Node): Property =
     inner.parent = p
     return p
 
-method `$`*(p: Property): string =
-    return "[PROP '$1' $2]" % [p.propName, $p.inner]
+method textprops*(prop: Property): auto =
+    return {"name": prop.propName}.toTable
 
-method `$$`*(p: Property): string =
-    return "$1 PROPERTY '$2'\n$3" % [$p.returnType, p.propName, >$ $$p.inner]
-
-method children*(p: Property): seq[Node] =
-    return @[p.inner]
-
-method `==`*(prop: Property, other: Node): bool =
-    if not (other of Property):
-        return false
-
-    let otherProp = Property(other)
-    return otherProp.propName == prop.propName and
-        otherProp.inner == prop.inner
+method nodeProps*(prop: Property): auto =
+    return {"inner": prop.inner}.toTable
