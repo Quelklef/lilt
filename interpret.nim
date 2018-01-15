@@ -68,7 +68,7 @@ proc `$`(rv: RuleVal): string =
         return "head: $1, kind: $2" % [$rv.head, $rv.kind]
 
 # TODO: Remove
-let nilNode = inner_ast.newNode("nil (if you're reading this, that's bad.)")
+let nilNode = inner_ast.initNode("nil (if you're reading this, that's bad.)")
 
 converter toRuleVal(retVal: (int, string)): RuleVal =
     return RuleVal(
@@ -121,7 +121,7 @@ proc newCurrentResult*(kind: RuleReturnType): CurrentResult =
         result = CurrentResult(kind: rrtList, list: @[])
     of rrtNode:
         # The kind will be added in the top-leve sequence
-        result = CurrentResult(kind: rrtNode, node: inner_ast.newNode(""))
+        result = CurrentResult(kind: rrtNode, node: inner_ast.initNode(""))
     else:
         assert false
 
@@ -352,6 +352,8 @@ method translate(op: OnePlus, context: LiltContext): Rule =
             return (head, returnNodeList)
         of rrtText:
             return (head, returnText)
+        of rrtTypeless:
+            return head
         else:
             assert false
 
@@ -385,11 +387,11 @@ method translate(p: outer_ast.Property, context: LiltContext): Rule =
         # TODO: Perhaps a ReturnVal.toProperty proc is in order?
         case returnVal.kind:
         of rrtText:
-            crNode.properties[p.propName] = inner_ast.newProperty(returnVal.text)
+            crNode.properties[p.propName] = inner_ast.initProperty(returnVal.text)
         of rrtNode:
-            crNode.properties[p.propName] = inner_ast.newProperty(returnVal.node)
+            crNode.properties[p.propName] = inner_ast.initProperty(returnVal.node)
         of rrtList:
-            crNode.properties[p.propName] = inner_ast.newProperty(returnVal.list)
+            crNode.properties[p.propName] = inner_ast.initProperty(returnVal.list)
         of rrtTypeless, rrtUnknown:
             assert false
 

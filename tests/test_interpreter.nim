@@ -32,13 +32,13 @@ proc test(testName: string, code: string, rule: string, input: string, expected:
 # increase readibility of the following code.
 # When reading, they may be safely ignored.
 proc `~`(text: string): inner_ast.Property = 
-  return newProperty(text)
+  return initProperty(text)
 
 proc `~`(node: inner_ast.Node): inner_ast.Property =
-  return newProperty(node)
+  return initProperty(node)
 
 proc `~`(list: seq[inner_ast.Node]): inner_ast.Property =
-  return newProperty(list)
+  return initProperty(list)
 
 test(
   "Interpreter test 1",
@@ -49,15 +49,15 @@ test(
   """,
   "sentenceNode",
   "several, words, in, a, sentence",
-  newNode(
+  initNode(
     "sentenceNode",
     {
       "sentence": @[
-        newNode("word", {"val": "several"}),
-        newNode("word", {"val": "words"}),
-        newNode("word", {"val": "in"}),
-        newNode("word", {"val": "a"}),
-        newNode("word", {"val": "sentence"}),
+        initNode("word", {"val": "several"}),
+        initNode("word", {"val": "words"}),
+        initNode("word", {"val": "in"}),
+        initNode("word", {"val": "a"}),
+        initNode("word", {"val": "sentence"}),
       ]
     }
   )
@@ -72,7 +72,7 @@ test(
   """,
   "consoWord",
   "bhjdsjkeaklj",
-  newNode(
+  initNode(
     "consoWord",
     {"letters": "bhjdsjk"}
   )
@@ -87,7 +87,7 @@ test(
   """,
   "nVowels",
   "aeeoouuiaobbbbboisoso",
-  newNode(
+  initNode(
     "nVowels",
     {"val": "aeeoouuiao"}
   )
@@ -103,13 +103,13 @@ test(
   """,
   "nFuncdef",
   "function multiply(argone, argtwo, argthree);",
-  newNode(
+  initNode(
     "nFuncdef",
     {
       "args": ~ @[
-        newNode("nArg", {"id": "argone"}),
-        newNode("nArg", {"id": "argtwo"}),
-        newNode("nArg", {"id": "argthree"})
+        initNode("nArg", {"id": "argone"}),
+        initNode("nArg", {"id": "argtwo"}),
+        initNode("nArg", {"id": "argthree"})
       ],
       "id": ~"multiply",
     }

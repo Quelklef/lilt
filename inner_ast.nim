@@ -91,39 +91,39 @@ proc `$`*(p: Property): string =
 
 #~#
 
-proc newProperty*(text: string): Property =
+proc initProperty*(text: string): Property =
     return Property(kind: pkText, text: text)
 
-proc newProperty*(node: Node): Property =
+proc initProperty*(node: Node): Property =
     return Property(kind: pkNode, node: node)
 
-proc newProperty*(list: seq[Node]): Property =
+proc initProperty*(list: seq[Node]): Property =
     return Property(kind: pkList, list: list)
 
-proc newNode*(kind: string): Node =
+proc initNode*(kind: string): Node =
     return Node(kind: kind, properties: newTable[string, Property]())
 
-proc newNode*(kind: string, props: TableRef[string, Property]): Node =
+proc initNode*(kind: string, props: TableRef[string, Property]): Node =
     return Node(kind: kind, properties: props)
 
-proc newNode*(kind: string, props: Table[string, Property]): Node =
+proc initNode*(kind: string, props: Table[string, Property]): Node =
     # No idea how this works, just paralleling code from table.nim source
     var t: TableRef[string, Property]
     new(t)
     t[] = props
     return Node(kind: kind, properties: t)
 
-proc newNode*(kind: string, props: openarray[(string, Property)]): Node =
+proc initNode*(kind: string, props: openarray[(string, Property)]): Node =
     return Node(kind: kind, properties: props.newTable)
 
-proc newNode*(kind: string, props: openarray[(string, string)]): Node =
+proc initNode*(kind: string, props: openarray[(string, string)]): Node =
     let properties = @props.mapIt( (it[0], Property(kind: pkText, text: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
-proc newNode*(kind: string, props: openarray[(string, Node)]): Node =
+proc initNode*(kind: string, props: openarray[(string, Node)]): Node =
     let properties = @props.mapIt( (it[0], Property(kind: pkNode, node: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
-proc newNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
+proc initNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
     let properties = @props.mapIt( (it[0], Property(kind: pkList, list: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
