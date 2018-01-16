@@ -144,7 +144,7 @@ type RuleError = object of Exception
 
 type LiltContext* = TableRef[string, Rule]
 
-const doDebug = false
+const doDebug = true
 when not doDebug:
     template debugWrap(rule: Rule, node: outer_ast.Node): Rule =
         rule
@@ -346,7 +346,6 @@ method translate(o: Optional, context: LiltContext): Rule =
 method translate(op: OnePlus, context: LiltContext): Rule =
     let innerRule = translate(op.inner, context)
 
-    # TODO Should be several procs rather than one
     proc rule(head: int, text: string, currentResult: CurrentResult): RuleVal =
         var head = head
         var currentResult = currentResult
@@ -357,21 +356,25 @@ method translate(op: OnePlus, context: LiltContext): Rule =
         var returnText = ""
 
         while true:
+            var retVal: RuleVal
             try:
-                let retVal = innerRule(head, text, currentResult)
-                (head, currentResult) = retVal.hcr
-
-                case op.returnType:
-                of rrtText:
-                    returnText &= retVal.text
-                of rrtList:
-                    returnNodeList.add(retVal.node)
-                else:
-                    discard
-
-                inc(matchedCount)
+                retVal = innerRule(head, text, currentResult)
             except RuleError:
                 break
+
+            (head, currentResult) = retVal.hcr
+
+            case op.returnType:
+            of rrtText:
+                returnText &= retVal.text
+            of rrtList:
+                returnNodeList.add(retVal.node)
+            of rrtNone:
+                discard
+            else:
+                assert false
+
+            inc(matchedCount)
 
         if matchedCount == 0:
             raise newException(RuleError, "Expected text to match at least once.")
@@ -468,12 +471,17 @@ proc interpret*(text: string, ruleName: string, input: string): RuleVal =
     let ast: outer_ast.Node = parse.parseProgram(text)
     verify.verify(ast)
     types.inferReturnTypes(ast)
+    echo $$ast
     let res = translate(Program(ast))
-    let rule = res[ruleName]
-    # TODO: This will be called once during type inference and once here.
-    # while this is a small inefficiency, it is perhaps worth it to change
-    let definitionTypes: Table[string, RuleReturnType] = inferDefinitionReturnTypes(ast)
-    result = rule(0, input, initCurrentResult(definitionTypes[ruleName].toLiltType))
+    let rule: Rule = res[ruleName]
+    echo ruleName
+    echo ast.Program.definitions.filterit(it.Definition.id == ruleName)[0].returnType.toLiltType
+    result = rule(0, input, initCurrentResult(
+        ast.Program
+            .definitions
+            .filterIt(it.Definition.id == ruleName)[0]  # TODO: For some reason, .findIt not working??
+            .returnType.toLiltType
+    ))
 
 when isMainModule:
     const code = r"""

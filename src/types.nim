@@ -1,36 +1,42 @@
 #[
 Handles type inference in the outer ast.
+
+Programs are always typeless (rrtNone)
+Definitions are semantically typeless but are a special case; definitions' return types match those
+    of their inner rule.
+
+All other nodes' return types have semantic meaning.
 ]#
 
 import outer_ast
 import sequtils
 import strutils
 import tables
-from misc import `{}`, BaseError, reversed
+from misc import `{}`, BaseError, reversed, findIt
 
 type TypeError* = object of Exception
 
 # Maps the name of rules to their type
 type KnownTypeRules = Table[string, outer_ast.RuleReturnType]
 
-method inferReturnType(node: Node, knownReturnTypes: KnownTypeRules) {.base.} =
+method inferReturnType(node: Node) {.base.} =
     raise newException(BaseError, "Cannot infer return type for base type Node. Value given: $1" % $node)
 
-method inferReturnType(prop: Property, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(prop: Property) =
     # Properties return the same type as their contained node
     prop.returnType = rrtNone
 
-method inferReturnType(adj: Adjoinment, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(adj: Adjoinment) =
     adj.returnType = rrtNone
 
-method inferReturnType(ext: Extension, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(ext: Extension) =
     # Properties return the same type as their contained node
     ext.returnType = rrtNone
 
-method inferReturnType(guard: Guard, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(guard: Guard) =
     guard.returnType = rrtNone
 
-method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(op: OnePlus) =
     let inner = op.inner
 
     case inner.returnType:
@@ -44,22 +50,30 @@ method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
-method inferReturnType(opt: Optional, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(opt: Optional) =
     if opt.inner.returnType == rrtNode:
         opt.returnType = rrtNone
     else:
         opt.returnType = opt.inner.returnType
 
-method inferReturnType(se: Set, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(se: Set) =
     se.returnType = rrtText
 
-method inferReturnType(lit: Literal, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(lit: Literal) =
     lit.returnType = rrtText
 
-method inferReturnType(re: Reference, knownReturnTypes: KnownTypeRules) =
-    if re.id notin knownReturnTypes:
+method inferReturnType(re: Reference) =
+    # Ensure that referencing a defined function
+    let programs = re.ancestors
+        .findIt(it of Program)
+        .Program.descendants
+        .filterIt(it of Definition)
+        .mapIt(it.Definition)
+
+    if re.id notin programs.mapIt(it.id):
         raise newException(TypeError, "Rule '$1' has unknown type." % re.id)
-    re.returnType = knownReturnTypes[re.id]
+
+    re.returnType = programs.findIt(it.id == re.id).returnType
 
 proc allSame[T](s: seq[T]): bool =
     ## Return if all items in seq are the same value
@@ -74,7 +88,7 @@ proc allSame[T](s: seq[T]): bool =
             return false
     return true
 
-method inferReturnType(choice: Choice, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(choice: Choice) =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
@@ -83,7 +97,7 @@ method inferReturnType(choice: Choice, knownReturnTypes: KnownTypeRules) =
     let allTypes = innerTypes[0]  # Type of all inner nodes
     choice.returnType = allTypes
 
-method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
+method inferReturnType(se: Sequence) =
     # Note: verify.nim:verify will already have been
     # run on the AST before this is called, so no need
     # to ensure that doesn't contain Extension node and 
@@ -120,51 +134,40 @@ method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
         else:
             se.returnType = rrtText
 
-method inferReturnType(def: Definition, knownReturnTypes: KnownTypeRules) =
-    def.returnType = rrtNone
+method inferReturnType(def: Definition) =
+    discard
 
-method inferReturnType(prog: Program, knownReturnTypes: KnownTypeRules) =
-    prog.returnType = rrtNone
+method inferReturnType(prog: Program) =
+    discard
 
-proc inferDefinitionReturnTypes*(ast: Node): Table[string, RuleReturnType] =
-    # Infer the return types of all rules in definitions, and return as a table
-    # mapping definition.id -> rrt
+proc inferDefinitionReturnTypes*(ast: Node) =
+    let definitionLayer = ast.layers{1}.mapIt(it.Definition)
 
-    let definitionLayer = ast.layers{1}
-    result = initTable[string, outer_ast.RuleReturnType]()
-
-    # First, infer types of definitons and add to the table
-    for definition in definitionLayer.mapIt(it.Definition):
-
-        # Get top-level nodes. These are the ones contained in SEQUENCE/CHOICE contained in DEFINITON
-        var infferedReturnType = rrtNone  # rrtNone as a substitute for `nil`
-
+    for definition in definitionLayer:
         for node in definition.descendants:
-            if node of Property:
-                infferedReturnType = rrtNode
+            if node of Adjoinment:
+                definition.returnType = rrtText
+                break
+            elif node of Property:
+                definition.returnType = rrtNode
                 break
             elif node of Extension:
-                infferedReturnType = rrtList
-                break
-            elif node of Adjoinment:
-                infferedReturnType = rrtText
+                definition.returnType = rrtList
                 break
 
-        if infferedReturnType == rrtNone:
+        if definition.returnType == rrtNone:
             # If it has none, it returns text
-            infferedReturnType = rrtText
-
-        result[definition.id] = infferedReturnType
+            definition.returnType = rrtText
 
 proc inferReturnTypes*(ast: Node) =
     let layers = ast.layers
     let definitionLayer = layers{1}
 
-    let returnTypeTable = inferDefinitionReturnTypes(ast)
+    inferDefinitionReturnTypes(ast)
 
     # Next, infer the types of the rest of the AST
     for definition in definitionLayer:
         let innerLayers = definition.layers
         for layer in innerLayers[1 .. innerLayers.len - 1].reversed:  # [1..~] because we want to exclude the actual definition
             for node in layer:
-                inferReturnType(node, returnTypeTable)
+                inferReturnType(node)

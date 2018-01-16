@@ -54,7 +54,7 @@ type RuleReturnType* = enum
 proc toLiltType*(rrt: RuleReturnType): LiltType =
     case rrt:
     of rrtNone:
-        assert false
+        raise newException(ValueError, "Value cannot be rrtNone.")
     of rrtText:
         return ltText
     of rrtNode:
@@ -132,7 +132,6 @@ proc `==`*(node: Node, other: Node): bool =
 
 proc descendants*(node: Node): seq[Node] =
   ## Recursively iterates through all descendants of given node.
-  
   result = node.children
   var head = 0  # Index of current node we're unpacking
 
