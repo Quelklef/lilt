@@ -428,7 +428,6 @@ method translate(adj: Adjoinment, context: LiltContext): Rule =
         case returnVal.kind:
         of rrtText:
             currentResult.text &= returnVal.text
-            echo currentResult.text
         else:
             assert false
 

@@ -1,6 +1,6 @@
 
-import ../outer_ast
-import ../parse
+import ../src/outer_ast
+import ../src/parse
 
 import strutils
 

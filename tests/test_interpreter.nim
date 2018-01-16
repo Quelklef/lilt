@@ -1,10 +1,10 @@
 
-import ../parse
-import ../verify
-import ../types
-import ../inner_ast
-import ../outer_ast
-import ../interpret
+import ../src/parse
+import ../src/verify
+import ../src/types
+import ../src/inner_ast
+import ../src/outer_ast
+import ../src/interpret
 
 import tables
 import strutils
