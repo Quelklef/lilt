@@ -20,6 +20,7 @@ proc test(testName: string, code: string, rule: string, input: string, expected:
   of rrtNode:
     resNode = res.node
   else:
+    echo res.kind
     assert false
 
   if resNode != expected:

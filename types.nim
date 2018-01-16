@@ -18,17 +18,17 @@ method inferReturnType(node: Node, knownReturnTypes: KnownTypeRules) {.base.} =
 
 method inferReturnType(prop: Property, knownReturnTypes: KnownTypeRules) =
     # Properties return the same type as their contained node
-    prop.returnType = rrtTypeless
+    prop.returnType = rrtNone
 
 method inferReturnType(adj: Adjoinment, knownReturnTypes: KnownTypeRules) =
-    adj.returnType = rrtTypeless
+    adj.returnType = rrtNone
 
 method inferReturnType(ext: Extension, knownReturnTypes: KnownTypeRules) =
     # Properties return the same type as their contained node
-    ext.returnType = rrtTypeless
+    ext.returnType = rrtNone
 
 method inferReturnType(guard: Guard, knownReturnTypes: KnownTypeRules) =
-    guard.returnType = rrtTypeless
+    guard.returnType = rrtNone
 
 method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
     let inner = op.inner
@@ -38,15 +38,15 @@ method inferReturnType(op: OnePlus, knownReturnTypes: KnownTypeRules) =
         op.returnType = rrtText
     of rrtNode:
         op.returnType = rrtList
-    of rrtTypeless:
+    of rrtNone:
         # If typeless, execture statement several times
-        op.returnType = rrtTypeless
+        op.returnType = rrtNone
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
 method inferReturnType(opt: Optional, knownReturnTypes: KnownTypeRules) =
     if opt.inner.returnType == rrtNode:
-        opt.returnType = rrtTypeless
+        opt.returnType = rrtNone
     else:
         opt.returnType = opt.inner.returnType
 
@@ -121,10 +121,10 @@ method inferReturnType(se: Sequence, knownReturnTypes: KnownTypeRules) =
             se.returnType = rrtText
 
 method inferReturnType(def: Definition, knownReturnTypes: KnownTypeRules) =
-    def.returnType = rrtTypeless
+    def.returnType = rrtNone
 
 method inferReturnType(prog: Program, knownReturnTypes: KnownTypeRules) =
-    prog.returnType = rrtTypeless
+    prog.returnType = rrtNone
 
 proc inferDefinitionReturnTypes*(ast: Node): Table[string, RuleReturnType] =
     # Infer the return types of all rules in definitions, and return as a table
@@ -137,7 +137,7 @@ proc inferDefinitionReturnTypes*(ast: Node): Table[string, RuleReturnType] =
     for definition in definitionLayer.mapIt(it.Definition):
 
         # Get top-level nodes. These are the ones contained in SEQUENCE/CHOICE contained in DEFINITON
-        var infferedReturnType = rrtTypeless  # rrtTypeless as a substitute for `nil`
+        var infferedReturnType = rrtNone  # rrtNone as a substitute for `nil`
 
         for node in definition.descendants:
             if node of Property:
@@ -150,7 +150,7 @@ proc inferDefinitionReturnTypes*(ast: Node): Table[string, RuleReturnType] =
                 infferedReturnType = rrtText
                 break
 
-        if infferedReturnType == rrtTypeless:
+        if infferedReturnType == rrtNone:
             # If it has none, it returns text
             infferedReturnType = rrtText
 

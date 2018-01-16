@@ -39,6 +39,7 @@ import strutils
 import tables
 
 import misc
+import base
 
 type RuleReturnType* = enum
     ## Rules may return any of a LiltType,
@@ -49,6 +50,17 @@ type RuleReturnType* = enum
     rrtText
     rrtNode
     rrtList
+
+proc toLiltType*(rrt: RuleReturnType): LiltType =
+    case rrt:
+    of rrtNone:
+        assert false
+    of rrtText:
+        return ltText
+    of rrtNode:
+        return ltNode
+    of rrtList:
+        return ltList
 
 type Node* = ref object of RootObj
     returnType*: RuleReturnType
