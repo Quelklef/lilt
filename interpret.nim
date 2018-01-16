@@ -44,8 +44,6 @@ type RuleVal* = object of RootObj
         node*: inner_ast.Node
     of rrtTypeless:
         discard
-    of rrtUnknown:
-        discard  # Technically not allowed, but can't `assert false` here.
 
 proc `$`(s: seq[inner_ast.Node]): string =
     result = "@["
@@ -64,32 +62,29 @@ proc `$`(rv: RuleVal): string =
         return "head: $1; list: $2" % [$rv.head, $rv.list]
     of rrtNode:
         return "head: $1; node: $2" % [$rv.head, $rv.node]
-    of rrtTypeless, rrtUnknown:
+    of rrtTypeless:
         return "head: $1, kind: $2" % [$rv.head, $rv.kind]
-
-# TODO: Remove
-let nilNode = inner_ast.initNode("nil (if you're reading this, that's bad.)")
 
 converter toRuleVal(retVal: (int, string)): RuleVal =
     return RuleVal(
-            kind: rrtText,
-            head: retVal[0],
-            text: retVal[1],
-        )
+        kind: rrtText,
+        head: retVal[0],
+        text: retVal[1],
+    )
 
 converter toRuleVal(retVal: (int, seq[inner_ast.Node])): RuleVal =
     return RuleVal(
-            kind: rrtList,
-            head: retVal[0],
-            list: retVal[1],
-        )
+        kind: rrtList,
+        head: retVal[0],
+        list: retVal[1],
+    )
 
 converter toRuleval(retVal: (int, inner_ast.Node)): RuleVal =
     return RuleVal(
-            kind: rrtNode,
-            head: retVal[0],
-            node: retVal[1],
-        )
+        kind: rrtNode,
+        head: retVal[0],
+        node: retVal[1],
+    )
 
 converter toRuleVal(retVal: int): RuleVal =
     return RuleVal(
@@ -392,7 +387,7 @@ method translate(p: outer_ast.Property, context: LiltContext): Rule =
             crNode.properties[p.propName] = inner_ast.initProperty(returnVal.node)
         of rrtList:
             crNode.properties[p.propName] = inner_ast.initProperty(returnVal.list)
-        of rrtTypeless, rrtUnknown:
+        of rrtTypeless:
             assert false
 
         return returnVal.head

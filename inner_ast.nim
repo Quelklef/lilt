@@ -16,20 +16,18 @@ import strutils
 import sequtils
 
 import misc
+import base
 
 type
-    PropertyKind* = enum
-        pkText, pkNode, pkList
-
     # Type of an property on a node
     # Each property can either be text, a node, or a list of nodes
     Property* = object
-        case kind: PropertyKind
-        of pkText:
+        case kind: LiltType
+        of ltText:
             text*: string
-        of pkNode:
+        of ltNode:
             node*: Node
-        of pkList:
+        of ltList:
             # Children
             list*: seq[Node]
 
@@ -45,11 +43,11 @@ proc `==`*(prop: Property, other: Property): bool =
         return false
 
     case prop.kind:
-    of pkText:
+    of ltText:
         return prop.text == other.text
-    of pkNode:
+    of ltNode:
         return prop.node == other.node
-    of pkList:
+    of ltList:
         return prop.list == other.list
 
 proc `==`*(node: Node, other: Node): bool =
@@ -75,11 +73,11 @@ proc `$`*(p: Property): string =
 
     var val: string
     case p.kind:
-    of pkText:
+    of ltText:
         val = p.text
-    of pkNode:
+    of ltNode:
         val = $p.node
-    of pkList:
+    of ltList:
         val = $$p.list
 
     return "<\n$1\n>" % >$ (
@@ -92,13 +90,13 @@ proc `$`*(p: Property): string =
 #~#
 
 proc initProperty*(text: string): Property =
-    return Property(kind: pkText, text: text)
+    return Property(kind: ltText, text: text)
 
 proc initProperty*(node: Node): Property =
-    return Property(kind: pkNode, node: node)
+    return Property(kind: ltNode, node: node)
 
 proc initProperty*(list: seq[Node]): Property =
-    return Property(kind: pkList, list: list)
+    return Property(kind: ltList, list: list)
 
 proc initNode*(kind: string): Node =
     return Node(kind: kind, properties: newTable[string, Property]())
@@ -117,13 +115,13 @@ proc initNode*(kind: string, props: openarray[(string, Property)]): Node =
     return Node(kind: kind, properties: props.newTable)
 
 proc initNode*(kind: string, props: openarray[(string, string)]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: pkText, text: it[1])) ).newTable
+    let properties = @props.mapIt( (it[0], Property(kind: ltText, text: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 proc initNode*(kind: string, props: openarray[(string, Node)]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: pkNode, node: it[1])) ).newTable
+    let properties = @props.mapIt( (it[0], Property(kind: ltNode, node: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 proc initNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: pkList, list: it[1])) ).newTable
+    let properties = @props.mapIt( (it[0], Property(kind: ltList, list: it[1])) ).newTable
     return Node(kind: kind, properties: properties)

@@ -41,8 +41,10 @@ import tables
 import misc
 
 type RuleReturnType* = enum
-    rrtUnknown
-    rrtTypeless
+    ## Rules may return any of a LiltType,
+    ## or it may return nothing.
+    # Default is rrtNone
+    rrtNone
 
     rrtText
     rrtNode
