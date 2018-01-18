@@ -49,13 +49,13 @@ method typeName(n: Node): string {.base.} =
     raise new(BaseError)
 
 method textProps*(n: Node): Table[string, string] {.base.} =
-    raise new(BaseError)
+    return initTable[string, string]()
 
 method nodeProps*(n: Node): Table[string, Node] {.base.} =
-    raise new(BaseError)
+    return initTable[string, Node]()
 
 method listProps*(n: Node): Table[string, seq[Node]] {.base.} =
-    raise new(BaseError)
+    return initTable[string, seq[Node]]()
 
 proc `$`*(node: Node): string =
     var props = {"kind": node.typeName}.toTable
@@ -101,7 +101,7 @@ proc isLeaf*(n: Node): bool =
 proc `==`*(node: Node, other: Node): bool =
     # NOTE: This does not verifiy that the two nodes' have matching
     # return type. This is intentional.
-    # TODO: This should not rely on .typeName.
+    # TODO: This should not rely on .typeName
     # There must be another way to check if two nodes are of the same type.
     return node.typeName == other.typeName and
         node.textProps == other.textProps and

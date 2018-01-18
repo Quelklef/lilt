@@ -1,10 +1,10 @@
 
-import ../src/parse
-import ../src/verify
-import ../src/types
-import ../src/inner_ast
-import ../src/outer_ast
-import ../src/interpret
+import ../src/lilt/private/parse
+import ../src/lilt/private/verify
+import ../src/lilt/private/types
+import ../src/lilt/private/inner_ast
+import ../src/lilt/private/outer_ast
+import ../src/lilt/private/interpret
 
 import tables
 import strutils
@@ -113,6 +113,25 @@ test(
         initNode("nArg", {"id": "argthree"})
       ],
       "id": ~"multiply",
+    }
+  )
+)
+
+test(
+  "Choice test 1",
+  """
+  digit: <1234567890>
+  letter: <abcdefghijklmnopqrstuvwxyz>
+  alphanumeric: digit | letter
+  anstring: *alphanumeric
+  annode: val=anstring
+  """,
+  "annode",
+  "qwnjgib2723t99 12h8t9",
+  initNode(
+    "annode",
+    {
+      "val": "qwnjgib2723t99"
     }
   )
 )

@@ -1,6 +1,6 @@
 
-import ../src/outer_ast
-import ../src/parse
+import ../src/lilt/private/outer_ast
+import ../src/lilt/private/parse
 
 import strutils
 
