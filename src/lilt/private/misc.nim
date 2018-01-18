@@ -10,25 +10,26 @@ proc `{}`*[T](s: seq[seq[T]], i: int): seq[T] =
     return s[i]
 
 type BaseError* = object of Exception
-    ## To be raised when calling a base method with no implementation
+    ## "Unimplemented error" for base methods
+    ## Motivation: To use base types as interfaces
 
 proc `>$`*(s: string, indentText = ".     "): string =
-        ## Ident a block of text
-        return s.split("\n").mapIt(indentText & it).join("\n")
+    ## Ident a block of text
+    return s.split("\n").mapIt(indentText & it).join("\n")
 
 template extend*[T](s1: seq[T], s2: seq[T]) =
     for item in s2:
         s1.add(item)
 
 proc `$$`*[K, V](t: Table[K, V]): string =
-        var parts: seq[string] = @[]
-        for key in t.keys:
-                parts.add("$1: $2" % [$key, $t[key]])
-        return "{\n$1\n}" % >$ parts.join("\n")
+    var parts: seq[string] = @[]
+    for key in t.keys:
+            parts.add("$1: $2" % [$key, $t[key]])
+    return "{\n$1\n}" % >$ parts.join("\n")
 
 iterator reversed*[T](s: seq[T]): T =
-        for idx in countdown(s.len - 1, 0):
-                yield s[idx]
+    for idx in countdown(s.len - 1, 0):
+            yield s[idx]
 
 template findIt*(sequence, pred: untyped): untyped =
     ## Return first item which matches predicate

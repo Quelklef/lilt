@@ -1,31 +1,9 @@
+
 #[ 
+
 AST definiton for parsed Lilt code.
-]#
 
-#[
-Each kind of node on the AST, e.g. ADD_OP, FUNC_DEF, etc.
-has its own type.
-
-They should all inherit from Node and should
-fulfill the following contract:
-
-method children: seq[Node]
-    return all children of the node
-    if no children, return @[]
-
-method textProps: Table[string, string]
-    return all string properties
-
-method nodeProps: Table[string, Node]
-    return all node properties
-
-method listProps: Table[string, seq[Node]]
-    take a guess
-
-
-Note that everything is a "ref object of" rather than an "object of"
-This is because it's needed for the polymorphism to work
-for some reason...
+Each kind of node on the AST has its own Nim type.
 
 All properties of subtypes of Node should be of type
 Node, string, or seq[Node]
@@ -68,16 +46,16 @@ type Node* = ref object of RootObj
 
 method typeName(n: Node): string {.base.} =
     # Returns the name of the type of the node
-    return "Node"
+    raise new(BaseError)
 
 method textProps*(n: Node): Table[string, string] {.base.} =
-    return initTable[string, string]()
+    raise new(BaseError)
 
 method nodeProps*(n: Node): Table[string, Node] {.base.} =
-    return initTable[string, Node]()
+    raise new(BaseError)
 
 method listProps*(n: Node): Table[string, seq[Node]] {.base.} =
-    return initTable[string, seq[Node]]()
+    raise new(BaseError)
 
 proc `$`*(node: Node): string =
     var props = {"kind": node.typeName}.toTable

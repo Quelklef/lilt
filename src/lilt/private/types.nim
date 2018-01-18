@@ -45,7 +45,7 @@ method inferReturnType(op: OnePlus) =
     of rrtNode:
         op.returnType = rrtList
     of rrtNone:
-        # If typeless, execture statement several times
+        # If typeless, execute statement several times and return nothing
         op.returnType = rrtNone
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)

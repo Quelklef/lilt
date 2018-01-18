@@ -23,6 +23,7 @@ import strfix
 import parse
 import types
 import base
+from misc import findIt
 
 #[
 Most Lilt constructs are translated into Rules,
@@ -35,8 +36,8 @@ Failing is done by raising a RuleError.
 
 type
     RuleVal* = object of RootObj
-        head: int
-        currentResult: CurrentResult
+        head*: int
+        currentResult*: CurrentResult
 
         case kind*: RuleReturnType:
         of rrtText:
@@ -140,11 +141,11 @@ proc initCurrentResult*(kind: LiltType): CurrentResult =
         assert false
 
 type Rule* = proc(head: int, text: string, currentResult: CurrentResult): RuleVal
-type RuleError = object of Exception
+type RuleError* = object of Exception
 
 type LiltContext* = TableRef[string, Rule]
 
-const doDebug = true
+const doDebug = false
 when not doDebug:
     template debugWrap(rule: Rule, node: outer_ast.Node): Rule =
         rule
@@ -169,7 +170,7 @@ else:
             debugPush("Attempting to match $1" % $node)
             #discard readLine(stdin)
             try:
-                result = rule(head, code, currentResult)
+                result = rule(head, text, currentResult)
             except RuleError as e:
                 debugPop("Failed: " & e.msg)
                 raise e
@@ -311,15 +312,6 @@ method translate(s: Set, context: LiltContext): Rule =
 
     return debugWrap(rule, s)
 
-#[
-Optional rules have different behaviour based on their inner rule.
-Depending on the return type of the inner rule, the optional rule
-will default to returning different things if the inner rule fails.
-Inner rule return type -> optional return vail on inner rule failure
-code -> ""
-list -> []
-node -> nilNode
-]#
 method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
     var rule: proc(head: int, text: string, currentResult: CurrentResult): RuleVal
@@ -457,7 +449,7 @@ method translate(e: Extension, context: LiltContext): Rule =
 
     return debugWrap(rule, e)
 
-proc translate(prog: Program): LiltContext =
+proc translate*(prog: Program): LiltContext =
     ## Translates a program to a table of definitions
     var context = newTable[string, Rule]()
     for definition in prog.definitions.mapIt(it.Definition):
@@ -469,31 +461,18 @@ proc interpret*(text: string, ruleName: string, input: string): RuleVal =
     # Note that it does not complain if the chosen rule does not
     # consume all input text
     let ast: outer_ast.Node = parse.parseProgram(text)
+
     verify.verify(ast)
     types.inferReturnTypes(ast)
-    echo $$ast
-    let res = translate(Program(ast))
-    let rule: Rule = res[ruleName]
-    echo ruleName
-    echo ast.Program.definitions.filterit(it.Definition.id == ruleName)[0].returnType.toLiltType
-    result = rule(0, input, initCurrentResult(
+
+    let definitions = translate(Program(ast))
+    let rule: Rule = definitions[ruleName]
+    
+    let ruleVal = rule(0, input, initCurrentResult(
         ast.Program
             .definitions
-            .filterIt(it.Definition.id == ruleName)[0]  # TODO: For some reason, .findIt not working??
+            .findIt(it.Definition.id == ruleName)
             .returnType.toLiltType
     ))
 
-when isMainModule:
-    const code = r"""
-    sentence: &word *[", " &word]
-    word: val=*<abcdefghijklmnopqrstuvwxyz>
-    """
-
-    block:
-        let ast = parseProgram(code)
-        verify(ast)
-        inferReturnTypes(ast)
-        echo $$ast
-
-    #echo $$interpret(code, "word", "test").node
-    echo $$interpret(code, "sentence", "several, words, in, a, sentence").list
+    return ruleVal
