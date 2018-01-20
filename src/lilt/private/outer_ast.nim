@@ -44,7 +44,7 @@ type Node* = ref object of RootObj
     returnType*: RuleReturnType
     parent*: Node
 
-method typeName(n: Node): string {.base.} =
+method typeName*(n: Node): string {.base.} =
     # Returns the name of the type of the node
     raise new(BaseError)
 

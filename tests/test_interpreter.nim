@@ -116,8 +116,6 @@ test(
     )
 )
 
-#[
-
 test(
     "Choice test 1",
     """
@@ -156,5 +154,3 @@ test(
         {"val": "banana"}
     )
 )
-
-]#

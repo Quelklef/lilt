@@ -195,29 +195,48 @@ method translate(lamb: Lambda, context: LiltContext): Rule =
         # Each lambda call gets its own context, so create one.
         var returnVal = innerRule(head, text, initLambdaState(lamb.returnType.toLiltType))
 
-        if lamb.returnType == rrtNode:
-            # TODO either:
-            # 1. Extend lambdas to be able to return node from anywhere
-            # 2. Disallow returning a node from a lambda
-            let isTopLevel = lamb.parent of Definition
-            assert isTopLevel
-            returnVal.lambdaState.node.kind = lamb.parent.Definition.id
+        # TODO: A lot of logic in this method feels misplaced
+        # We shouldn't be checking what the type of the body is
+        # nor should we be checking if it's top-level
+        # Somehow, all of this needs to be handled with typing (or a replacement)
 
-        case lamb.returnType:
-        of rrtText:
-            # TODO This should not be handled here; types are evidently insufficient
-            let hasAdj = lamb.scoped.anyIt(it of Adjoinment)
-            if hasAdj:
-                # Text found via mutation of lambdaState
-                return (returnVal.head, returnVal.lambdaState.text, lambdaState)
-            else:
-                # Text found via return
+        if lamb.body of Sequence:
+            if lamb.returnType == rrtNode:
+                # TODO either:
+                # 1. Extend lambdas to be able to return node from anywhere
+                # 2. Disallow returning a node from a lambda
+                let isTopLevel = lamb.parent of Definition
+                assert isTopLevel
+                returnVal.lambdaState.node.kind = lamb.parent.Definition.id
+
+            case lamb.returnType:
+            of rrtText:
+                let hasAdj = lamb.scoped.anyIt(it of Adjoinment)
+                if hasAdj:
+                    # Text found via mutation of lambdaState
+                    return (returnVal.head, returnVal.lambdaState.text, lambdaState)
+                else:
+                    # Text found via return
+                    return (returnVal.head, returnVal.text, lambdaState)
+            of rrtNode:
+                return (returnVal.head, returnVal.lambdaState.node, lambdaState)
+            of rrtList:
+                return (returnVal.head, returnVal.lambdaState.list, lambdaState)
+            of rrtNone:
+                assert false
+
+        elif lamb.body of Choice:
+            case lamb.returnType:
+            of rrtText:
                 return (returnVal.head, returnVal.text, lambdaState)
-        of rrtNode:
-            return (returnVal.head, returnVal.lambdaState.node, lambdaState)
-        of rrtList:
-            return (returnVal.head, returnVal.lambdaState.list, lambdaState)
-        of rrtNone:
+            of rrtNode:
+                return (returnVal.head, returnVal.node, lambdaState)
+            of rrtList:
+                return (returnVal.head, returnVal.list, lambdaState)
+            of rrtNone:
+                assert false
+
+        else:
             assert false
 
     return debugWrap(rule, lamb)
@@ -448,6 +467,7 @@ proc interpret*(text: string, ruleName: string, input: string): RuleVal =
         ast.Program
             .definitions
             .findIt(it.Definition.id == ruleName)
+            .Definition.body.Lambda
             .returnType.toLiltType
     ))
 

@@ -31,6 +31,11 @@ iterator reversed*[T](s: seq[T]): T =
     for idx in countdown(s.len - 1, 0):
             yield s[idx]
 
+proc reversed*[T](s: seq[T]): seq[T] =
+    result = @[]
+    for item in s.reversed:
+        result.add(item)
+
 template findIt*(sequence, pred: untyped): untyped =
     ## Return first item which matches predicate
     ## ex: 2 == @[1, 2, 3, 4, 5].findIt(it * it == 4)
