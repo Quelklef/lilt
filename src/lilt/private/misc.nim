@@ -33,5 +33,30 @@ iterator reversed*[T](s: seq[T]): T =
 
 template findIt*(sequence, pred: untyped): untyped =
     ## Return first item which matches predicate
-    ## ex: 2 == @[1, 2, 3, 4, 5].filterIt(it * it == 4)
+    ## ex: 2 == @[1, 2, 3, 4, 5].findIt(it * it == 4)
+    ## NOTE: Will fail with IndexError because templates are hard :(
     filterIt(sequence, pred)[0]
+
+proc allSame*[T](s: seq[T]): bool =
+    ## Return if all items in seq are the same value
+    ## Implemented `==` for T must be transitive, i.e.
+    ## A == B && B == C -> A == C
+    if s.len == 0:
+        return true
+
+    let first = s[0]
+    for item in s:
+        if item != first:
+            return false
+    return true
+
+# TODO filterOf/findOf don't seem to be working
+template filterOf(sequence, kind: untyped): untyped =
+    ## Filter a sequence to find all values of a specified type
+    ## Additionally, map those values to that type
+    sequence.filterIt(it of kind).mapIt(kind(it))
+
+template findOf(sequence, kind: untyped): untyped =
+    ## Find the first item in a sequene of a specified type
+    ## Additionally, convert that item to said type
+    kind(sequence.findIt(it of kind))

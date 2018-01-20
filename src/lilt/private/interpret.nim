@@ -18,7 +18,6 @@ import sequtils
 
 import outer_ast
 import inner_ast
-import verify
 import strfix
 import parse
 import types
@@ -166,9 +165,7 @@ else:
 
     proc debugWrap(rule: Rule, node: outer_ast.Node): Rule =
         proc wrappedRule(head: int, text: string, currentResult: CurrentResult): RuleVal =
-            #debugPush("Attempting to match\n$1\nwith:\n$2" % [$node, code[head ..< code.len]])
             debugPush("Attempting to match $1" % $node)
-            #discard readLine(stdin)
             try:
                 result = rule(head, text, currentResult)
             except RuleError as e:
@@ -187,66 +184,63 @@ method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
 
 method translate(re: Reference, context: LiltContext): Rule =
     proc rule(head: int, text: string, currentResult: CurrentResult): RuleVal =
-        # Each time a rule is referenced, it relies on its own separate current result
-        let returnVal = context[re.id](head, text, initCurrentResult(re.returnType.toLiltType))
-
-        case returnVal.kind:
-        of rrtText:
-            return (returnVal.head, returnVal.text, currentResult)
-        of rrtNode:
-            return (returnVal.head, returnVal.node, currentResult)
-        of rrtList:
-            return (returnVal.head, returnVal.list, currentResult)
-        of rrtNone:
-            return (returnVal.head, currentResult)
+        # Creating new `currentResult`s is handled in the translate(Lambda) code
+        return context[re.id](head, text, currentResult)
 
     return debugWrap(rule, re)
 
+method translate(lamb: Lambda, context: LiltContext): Rule =
+    let innerRule = translate(lamb.body, context)
+    proc rule(head: int, text: string, currentResult: CurrentResult): RuleVal =
+        # Each lambda call gets its own context, so create one.
+        var returnVal = innerRule(head, text, initCurrentResult(lamb.returnType.toLiltType))
+
+        if lamb.returnType == rrtNode:
+            # TODO either:
+            # 1. Extend lambdas to be able to return node from anywhere
+            # 2. Disallow returning a node from a lambda
+            let isTopLevel = lamb.parent of Definition
+            assert isTopLevel
+            returnVal.currentResult.node.kind = lamb.parent.Definition.id
+
+        case lamb.returnType:
+        of rrtText:
+            # TODO This should not be handled here; types are evidently insufficient
+            let hasAdj = lamb.scoped.anyIt(it of Adjoinment)
+            if hasAdj:
+                # Text found via mutation of currentResult
+                return (returnVal.head, returnVal.currentResult.text, currentResult)
+            else:
+                # Text found via return
+                return (returnVal.head, returnVal.text, currentResult)
+        of rrtNode:
+            return (returnVal.head, returnVal.currentResult.node, currentResult)
+        of rrtList:
+            return (returnVal.head, returnVal.currentResult.list, currentResult)
+        of rrtNone:
+            assert false
+
+    return debugWrap(rule, lamb)
+
 method translate(se: Sequence, context: LiltContext): Rule =
-    let isTopLevel = se.parent of Definition
     var rule: proc(head: int, text: string, currentResult: CurrentResult): RuleVal
 
     case se.returnType:
     of rrtText:
-        # TODO: This should not be handled here.
-        # evidently, typing is insufficient
-        # Perhaps intents are a good idea
-        let hasAdj = se.descendants.filterIt(it of Adjoinment).len > 0
+        rule = proc(head: int, text: string, currentResult: CurrentResult): RuleVal =
+            var head = head
+            var currentResult = currentResult
+            
+            var returnText = ""
 
-        if hasAdj:
-            rule = proc(head: int, text: string, currentResult: CurrentResult): RuleVal =
-                var currentResult = currentResult
-                var head = head
-                var returnText = ""
+            for node in se.contents:
+                let returnVal = translate(node, context)(head, text, currentResult)
+                (head, currentResult) = returnVal.hcr
+                returnText &= returnVal.text
 
-                for node in se.contents:
-                    (head, currentResult) = translate(node, context)(head, text, currentResult).hcr
+            return (head, returnText, currentResult)
 
-                return (head, currentResult.text, currentResult)
-
-        else:
-            rule = proc(head: int, text: string, currentResult: CurrentResult): RuleVal =
-                var head = head
-                var currentResult = currentResult
-                
-                var returnText = ""
-
-                for node in se.contents:
-                    let returnVal = translate(node, context)(head, text, currentResult)
-                    (head, currentResult) = returnVal.hcr
-
-                    case returnVal.kind:
-                    of rrtText:
-                        returnText &= returnVal.text
-                    of rrtNone:
-                        discard
-                    else:
-                        assert false
-
-                return (head, returnText, currentResult)
-
-    of rrtNode:
-        assert isTopLevel
+    of rrtNone:
         rule = proc(head: int, text: string, currentResult: CurrentResult): RuleVal =
             var head = head
             var currentResult = currentResult
@@ -254,21 +248,7 @@ method translate(se: Sequence, context: LiltContext): Rule =
             for node in se.contents:
                 (head, currentResult) = translate(node, context)(head, text, currentResult).hcr
 
-            assert currentResult.kind == ltNode
-            currentResult.node.kind = se.parent.Definition.id
-            return (head, currentResult.node, currentResult)
-    
-    of rrtList:
-        assert isTopLevel
-        rule = proc(head: int, text: string, currentResult: CurrentResult): RuleVal =
-            var head = head
-            var currentResult = currentResult
-
-            for node in se.contents:
-                let returnVal = translate(node, context)(head, text, currentResult)
-                (head, currentResult) = returnVal.hcr
-
-            return (head, currentResult.list, currentResult)
+            return (head, currentResult)
 
     else:
         assert false
@@ -399,17 +379,14 @@ method translate(p: outer_ast.Property, context: LiltContext): Rule =
     let innerRule = translate(p.inner, context)
 
     proc rule(head: int, text: string, currentResult: CurrentResult): RuleVal =
+        var currentResult = currentResult
+        var head = head
+
         let returnVal = innerRule(head, text, currentResult)
+        (head, currentResult) = returnVal.hcr
+        currentResult.node.properties[p.propName] = returnVal.toProperty
 
-        var crNode: inner_ast.Node
-        case currentResult.kind:
-        of ltNode:
-            crNode = currentResult.node
-        else:
-            assert false
-
-        crNode.properties[p.propName] = returnVal.toProperty
-        return returnVal.hcr
+        return (head, currentResult)
     
     return debugWrap(rule, p)
 
@@ -462,7 +439,6 @@ proc interpret*(text: string, ruleName: string, input: string): RuleVal =
     # consume all input text
     let ast: outer_ast.Node = parse.parseProgram(text)
 
-    verify.verify(ast)
     types.inferReturnTypes(ast)
 
     let definitions = translate(Program(ast))

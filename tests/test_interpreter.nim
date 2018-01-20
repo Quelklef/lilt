@@ -1,6 +1,5 @@
 
 import ../src/lilt/private/parse
-import ../src/lilt/private/verify
 import ../src/lilt/private/types
 import ../src/lilt/private/inner_ast
 import ../src/lilt/private/outer_ast
@@ -117,6 +116,8 @@ test(
     )
 )
 
+#[
+
 test(
     "Choice test 1",
     """
@@ -155,3 +156,5 @@ test(
         {"val": "banana"}
     )
 )
+
+]#

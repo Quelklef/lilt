@@ -413,7 +413,7 @@ proc parseDefinition(phead: int, code: string): ParserValue {.debug.} =
     var body: outer_ast.Node
     (head, body) = head.parseBody(code)
 
-    return (head, outer_ast.newDefinition(ide, body))
+    return (head, outer_ast.newDefinition(ide, newLambda(body)))
 
 proc parseProgram(phead: int, code: string): ParserValue {.debug.} =
     var head = phead

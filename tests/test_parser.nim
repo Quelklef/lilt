@@ -23,15 +23,15 @@ test(
   newProgram(@[
     newDefinition(
       "char",
-      newSequence(@[
+      newLambda(newSequence(@[
         newOptional(newOnePlus(newSet("abcdefg"))).Node
-      ])
+      ]))
     ).Node,
     newDefinition(
       "string",
-      newSequence(@[
+      newLambda(newSequence(@[
         newOnePlus(newReference("char")).Node
-      ])
+      ]))
     )
   ])
 )
@@ -44,7 +44,7 @@ test(
   newProgram(@[
     newDefinition(
       "args",
-      newSequence(@[
+      newLambda(newSequence(@[
         newExtension(newReference("arg")),
         newOptional(newOnePlus(
           newSequence(@[
@@ -52,7 +52,7 @@ test(
             newExtension(newReference("arg"))
           ])
         ))
-      ])
+      ]))
     ).Node
   ])
 )
@@ -65,11 +65,11 @@ test(
   newProgram(@[
     newDefinition(
       "handleString",
-      newSequence(@[
+      newLambda(newSequence(@[
         newLiteral("\""),
         newAdjoinment(newOptional(newOnePlus(newReference("char")))),
         newLiteral("\"")
-      ])
+      ]))
     ).Node
   ])
 )

@@ -12,7 +12,7 @@ import outer_ast
 import sequtils
 import strutils
 import tables
-from misc import `{}`, BaseError, reversed, findIt
+import misc
 
 type TypeError* = object of Exception
 
@@ -61,39 +61,27 @@ method inferReturnType(lit: Literal) =
 
 method inferReturnType(re: Reference) =
     # Ensure that referencing a defined function
-    let programs = re.ancestors
+    let definitions = re.ancestors
         .findIt(it of Program)
-        .Program.descendants
+        .descendants
         .filterIt(it of Definition)
         .mapIt(it.Definition)
 
-    if re.id notin programs.mapIt(it.id):
-        raise newException(TypeError, "Rule '$1' has unknown type." % re.id)
+    if re.id notin definitions.mapIt(it.id):
+        raise newException(TypeError, "No rule '$1'." % re.id)
 
-    re.returnType = programs.findIt(it.id == re.id).returnType
-
-proc allSame[T](s: seq[T]): bool =
-    ## Return if all items in seq are the same value
-    ## Implemented `==` for T must be transitive, i.e.
-    ## A == B && B == C ==> A == C
-    if s.len == 0:
-        return true
-
-    let first = s[0]
-    for item in s:
-        if item != first:
-            return false
-    return true
+    re.returnType = definitions.findIt(it.id == re.id).returnType
 
 method inferReturnType(choice: Choice) =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
-        raise newException(TypeError,
-            "Choice must be homogenous. Got types: $2" % [$innerTypes]
-        )
+        raise newException(TypeError, "Choice must be homogenous. Got types: $2" % $innerTypes)
 
     let allTypes = innerTypes[0]  # Type of all inner nodes
+    if allTypes == rrtNone:
+        raise newException(TypeError, "Choice must return non-None type.")
+
     choice.returnType = allTypes
 
 method inferReturnType(se: Sequence) =
@@ -101,37 +89,35 @@ method inferReturnType(se: Sequence) =
     # run on the AST before this is called, so no need
     # to ensure that doesn't contain Extension node and 
     # Property node
-    let descendants = se.descendants
-    let isTopLevel = se.parent of Definition
-
-    if not isTopLevel:
-        se.returnType = rrtText
+    if se.scoped.anyIt(it of Adjoinment or it of Property or it of Extension):
+        # Contains statements, so returns nothing
+        se.returnType = rrtNone
     else:
-        var hasProp, hasAdj, hasExt = false
+        se.returnType = rrtText
 
-        for node in descendants:
-            if node of Property:
-                hasProp = true
-            elif node of Adjoinment:
-                hasAdj = true
+method inferReturnType(lamb: Lambda) =
+    lamb.returnType = rrtNone  # As a semantic 'nil'
+
+    if lamb.body of Sequence:
+        for node in lamb.scoped:
+            if node of Adjoinment:
+                lamb.returnType = rrtText
+                break
+            elif node of Property:
+                lamb.returnType = rrtNode
+                break
             elif node of Extension:
-                hasExt = true
+                lamb.returnType = rrtList
+                break
 
-            if hasProp and hasAdj and hasExt:
-                break  # No more searching needs to be done
+        if lamb.returnType == rrtNone:
+            lamb.returnType = rrtText
 
-        # At most one must be true
-        if [hasProp, hasAdj, hasExt].mapIt(if it: 1 else: 0).foldl(a + b) > 1:
-            raise newException(TypeError, "Cannot combine properties and ajointments and extensions.")
+    elif lamb.body of Choice:
+        lamb.returnType = lamb.body.returnType
 
-        if hasProp:
-            se.returnType = rrtNode
-        elif hasAdj:
-            se.returnType = rrtText
-        elif hasExt:
-            se.returnType = rrtList
-        else:
-            se.returnType = rrtText
+    else:
+        assert false
 
 method inferReturnType(def: Definition) =
     discard
@@ -139,34 +125,26 @@ method inferReturnType(def: Definition) =
 method inferReturnType(prog: Program) =
     discard
 
-proc inferDefinitionReturnTypes*(ast: Node) =
-    let definitionLayer = ast.layers{1}.mapIt(it.Definition)
-
-    for definition in definitionLayer:
-        for node in definition.descendants:
-            if node of Adjoinment:
-                definition.returnType = rrtText
-                break
-            elif node of Property:
-                definition.returnType = rrtNode
-                break
-            elif node of Extension:
-                definition.returnType = rrtList
-                break
-
-        if definition.returnType == rrtNone:
-            # If it has none, it returns text
-            definition.returnType = rrtText
-
 proc inferReturnTypes*(ast: Node) =
+    # First, infer all the return types of the lambdas which
+    # contain top-level sequences.
+    # We do this first because it can be done very, very easily
+    # and other more difficult inferences rely on it
+    for lamb in ast.descendants.filterIt(it of Lambda):
+        if lamb.Lambda.body of Sequence:
+            inferReturnType(lamb)
+
+    # Next, set the return types of definitions to their top-level
+    # lambda's return type. This is done as a convention.
     let layers = ast.layers
-    let definitionLayer = layers{1}
-
-    inferDefinitionReturnTypes(ast)
-
-    # Next, infer the types of the rest of the AST
+    let definitionLayer = layers{1}.mapIt(it.Definition)
     for definition in definitionLayer:
-        let innerLayers = definition.layers
-        for layer in innerLayers[1 .. innerLayers.len - 1].reversed:  # [1..~] because we want to exclude the actual definition
-            for node in layer:
+        definition.returnType = definition.body.Lambda.returnType
+
+    # Using the known return types, we may infer the return types of the rest of the AST.
+    # We infer bottom-up, so that inferences may be made using contained nodes.
+    for layer in layers.reversed:
+        for node in layer:
+            # Skip already known nodes
+            if not (node of Definition) and not (node of Lambda):
                 inferReturnType(node)
