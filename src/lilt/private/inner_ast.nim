@@ -1,14 +1,8 @@
+
 #[
 Definiton of the AST _inside_ Lilt;
 that is, the AST which is a Lilt construct;
 that is, the AST used when _running_ Lilt code.
-
-Lilt nodes are either code (atoms / leaves), which contain only raw code,
-or branches, which tonain:
-    - A kind*, which is conteptually an enumeration but
-        represented as a string
-    - A table of properties, from string to Node
-    - A sequence of children
 ]#
 
 import tables
@@ -18,11 +12,13 @@ import sequtils
 import misc
 import base
 
+import json
+
 type
     # Type of an property on a node
     # Each property can either be text, a node, or a list of nodes
     Property* = object
-        case kind: LiltType
+        case kind*: LiltType
         of ltText:
             text*: string
         of ltNode:
@@ -33,10 +29,8 @@ type
 
     Node* = object
         kind*: string
-        # Want properties to be mutable for statements
+        # Want properties to be mutable so that Property may modify it during runtime
         properties*: TableRef[string, Property]
-
-proc `$`*(p: Property): string
 
 proc `==`*(prop: Property, other: Property): bool =
     if prop.kind != other.kind:
@@ -53,39 +47,38 @@ proc `==`*(prop: Property, other: Property): bool =
 proc `==`*(node: Node, other: Node): bool =
     return node.properties == other.properties
 
+proc toJson*(node: Node): JsonNode
 proc `$`*(node: Node): string =
-    var props = {"kind": node.kind}.toTable
-    for key, val in node.properties:
-        props[key] = $val
-    return $props
-
+    return $node.toJson
 proc `$$`*(node: Node): string =
-    var props = {"kind": node.kind}.toTable
-    for key, val in node.properties:
-        props[key] = $val
-    return $$props
+    return node.toJson.pretty
 
-proc `$$`*(s: seq[Node]): string =
-    return "@[\n$1\n]" % >$ s.mapIt($$it).join("\n")
+#~# JSON backend #~#
 
-proc `$`*(p: Property): string =
-    # TODO Should be `$$`
+# TODO: After bootstrapping starts, the type definitions in this file
+# should be moved to ast.nim
+# The procs should be moved to astutils.nim or something
+# and this should be moved to toJson.nim or something
 
-    var val: string
-    case p.kind:
+proc seqToJsonNode(se: seq[JsonNode]): JsonNode =
+    result = newJArray()
+    result.elems = se
+
+proc toJson(prop: Property): JsonNode =
+    case prop.kind:
     of ltText:
-        val = p.text
+        return %prop.text
     of ltNode:
-        val = $p.node
+        return toJson(prop.node)
     of ltList:
-        val = $$p.list
+        return prop.list.map(toJson).seqToJsonNode
 
-    return "<\n$1\n>" % >$ (
-        "$1\n$2" % [
-            "kind: $1" % $p.kind,
-            "val: $1" % val
-        ]
-    )
+proc toJson*(node: Node): JsonNode =
+    result = newJObject()
+    result.fields["kind"] = % node.kind
+
+    for key, prop in node.properties:
+        result.fields[key] = toJson(prop)
 
 #~#
 
@@ -104,13 +97,6 @@ proc initNode*(kind: string): Node =
 proc initNode*(kind: string, props: TableRef[string, Property]): Node =
     return Node(kind: kind, properties: props)
 
-proc initNode*(kind: string, props: Table[string, Property]): Node =
-    # No idea how this works, just paralleling code from table.nim source
-    var t: TableRef[string, Property]
-    new(t)
-    t[] = props
-    return Node(kind: kind, properties: t)
-
 proc initNode*(kind: string, props: openarray[(string, Property)]): Node =
     return Node(kind: kind, properties: props.newTable)
 
@@ -125,3 +111,9 @@ proc initNode*(kind: string, props: openarray[(string, Node)]): Node =
 proc initNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
     let properties = @props.mapIt( (it[0], Property(kind: ltList, list: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
+
+#[ TODO
+It would be really nice to have a Json-%*-esque macro or other
+API to be able to easily write ASTs without having to deal with
+a million unreadable calls to initNode and initProperty
+]#

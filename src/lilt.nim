@@ -16,9 +16,10 @@ import lilt/private/verify
 import lilt/private/types
 
 import tables
+import strutils
 import lilt/private/misc
 
-proc interpret*(code: string): proc (text: string): inner_ast.Node =
+proc makeParser*(code: string): proc(text: string): inner_ast.Node =
     ## Parses and inteprets Lilt code, returning the function
     ## correlating to the Rule 'main' (which must return a Node)
     let ast: outer_ast.Node = parse.parseProgram(code)
@@ -45,7 +46,7 @@ proc interpret*(code: string): proc (text: string): inner_ast.Node =
                 .returnType.toLiltType
         ))
 
-        if ruleVal.head != code.len:
-            raise newException(RuleError, "Unconsumed text left over.")
+        if ruleVal.head != text.len:
+            raise newException(RuleError, "Unconsumed text left over. (Head ended at $1, text.len=$2)" % [$ruleVal.head, $text.len])
 
         return ruleVal.node

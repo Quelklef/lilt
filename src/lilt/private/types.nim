@@ -16,9 +16,6 @@ from misc import `{}`, BaseError, reversed, findIt
 
 type TypeError* = object of Exception
 
-# Maps the name of rules to their type
-type KnownTypeRules = Table[string, outer_ast.RuleReturnType]
-
 method inferReturnType(node: Node) {.base.} =
     raise newException(BaseError, "Cannot infer return type for base type Node. Value given: $1" % $node)
 
@@ -92,7 +89,9 @@ method inferReturnType(choice: Choice) =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
-        raise newException(TypeError, "Choice must be homogenous.")
+        raise newException(TypeError,
+            "Choice must be homogenous. Got types: $2" % [$innerTypes]
+        )
 
     let allTypes = innerTypes[0]  # Type of all inner nodes
     choice.returnType = allTypes

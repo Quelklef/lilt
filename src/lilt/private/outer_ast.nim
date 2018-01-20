@@ -57,105 +57,6 @@ method nodeProps*(n: Node): Table[string, Node] {.base.} =
 method listProps*(n: Node): Table[string, seq[Node]] {.base.} =
     return initTable[string, seq[Node]]()
 
-proc `$`*(node: Node): string =
-    var props = {"kind": node.typeName}.toTable
-    for key, val in node.textProps:
-        props[key] = val
-    for key, val in node.nodeProps:
-        props[key] = $val
-    for key, val in node.listProps:
-        props[key] = $val
-    return $props
-
-proc `$$`*(node: Node): string
-proc `$$`(list: seq[Node]): string =
-    result = "@[\n"
-    for node in list:
-        result &= >$ $$node & "\n"
-    result &= "]"
-
-proc `$$`*(node: Node): string =
-    result = "{ kind: $1" % node.typeName
-    result &= "\nrrt: $1" % $node.returnType
-    for key, val in node.textProps:
-        result &= "\n$1: $2" % [key, val]
-    for key, val in node.nodeProps:
-        result &= "\n$1:\n$2" % [key, >$ $$val]
-    for key, val in node.listProps:
-        result &= "\n$1: $2" % [key, $$val]
-    result &= " }"
-
-proc children*(n: Node): seq[Node] =
-    result = @[]
-    for node in n.nodeProps.values:
-        result.add(node)
-    for list in n.listProps.values:
-        result.extend(list)
-
-proc isBranch*(n: Node): bool =
-    return n.children.len > 0
-
-proc isLeaf*(n: Node): bool =
-    return not n.isBranch
-
-proc `==`*(node: Node, other: Node): bool =
-    # NOTE: This does not verifiy that the two nodes' have matching
-    # return type. This is intentional.
-    # TODO: This should not rely on .typeName
-    # There must be another way to check if two nodes are of the same type.
-    return node.typeName == other.typeName and
-        node.textProps == other.textProps and
-        node.nodeProps == other.nodeProps and
-        node.listProps == other.listProps
-
-proc descendants*(node: Node): seq[Node] =
-  ## Recursively iterates through all descendants of given node.
-  result = node.children
-  var head = 0  # Index of current node we're unpacking
-
-  while head < result.len:
-    let current_node = result[head]
-    if current_node.isBranch:
-      result.extend(current_node.children)
-    inc(head)
-
-proc layers*(node: Node): seq[seq[Node]] =
-    ## Returns a 2d list in which each sublist is one more level
-    ## deep than the previous.
-    ## For instance, [PROGRAM [DEFINITION [SEQUENCE
-    ##     [SET 'abc']
-    ##     [GUARD [CHOICE [LITERAL 'a'] [LITERAL 'b']]
-    ##     [OPTIONAL [LITERAL 'c']]
-    ## ]]]
-    ## will return @[
-    ##     @[PROGRAM],
-    ##     @[DEFINITION],
-    ##     @[SEQUENCE],
-    ##     @[SET, GUARD, OPTIONAL],
-    ##     @[CHOICE, LITERAL 'c'],
-    ##     @[LITERAL 'a'],
-    ##     @[LITERAL 'b']
-    ## ]
-    result = @[@[node]]
-    while true:
-        let prevLayer = result[result.len - 1]
-        var newLayer: seq[Node] = @[]
-
-        for node in prevLayer:
-            newLayer.extend(node.children)
-
-        if newLayer.len == 0:
-            break
-        else:
-            result.add(newLayer)
-
-proc ancestors*(node: Node): seq[Node] =
-    result = @[]
-    var curNode = node.parent
-    while not curNode.isNil:
-        result.add(curNode)
-        curNode = curNode.parent
-
 # Program
 
 type Program* = ref object of Node
@@ -355,3 +256,105 @@ method nodeProps*(prop: Property): auto =
     return {"inner": prop.inner}.toTable
 
 method typeName(p: Property): string = "Property"
+
+
+#~#
+
+proc `$`*(node: Node): string =
+    var props = {"kind": node.typeName}.toTable
+    for key, val in node.textProps:
+        props[key] = val
+    for key, val in node.nodeProps:
+        props[key] = $val
+    for key, val in node.listProps:
+        props[key] = $val
+    return $props
+
+proc `$$`*(node: Node): string
+proc `$$`(list: seq[Node]): string =
+    result = "@[\n"
+    for node in list:
+        result &= >$ $$node & "\n"
+    result &= "]"
+
+proc `$$`*(node: Node): string =
+    result = "{ kind: $1" % node.typeName
+    result &= "\nrrt: $1" % $node.returnType
+    for key, val in node.textProps:
+        result &= "\n$1: $2" % [key, val]
+    for key, val in node.nodeProps:
+        result &= "\n$1:\n$2" % [key, >$ $$val]
+    for key, val in node.listProps:
+        result &= "\n$1: $2" % [key, $$val]
+    result &= " }"
+
+proc children*(n: Node): seq[Node] =
+    result = @[]
+    for node in n.nodeProps.values:
+        result.add(node)
+    for list in n.listProps.values:
+        result.extend(list)
+
+proc isBranch*(n: Node): bool =
+    return n.children.len > 0
+
+proc isLeaf*(n: Node): bool =
+    return not n.isBranch
+
+proc `==`*(node: Node, other: Node): bool =
+    # NOTE: This does not verifiy that the two nodes' have matching
+    # return type. This is intentional.
+    # TODO: This should not rely on .typeName
+    # There must be another way to check if two nodes are of the same type.
+    return node.typeName == other.typeName and
+        node.textProps == other.textProps and
+        node.nodeProps == other.nodeProps and
+        node.listProps == other.listProps
+
+proc descendants*(node: Node): seq[Node] =
+  ## Recursively iterates through all descendants of given node.
+  result = node.children
+  var head = 0  # Index of current node we're unpacking
+
+  while head < result.len:
+    let current_node = result[head]
+    if current_node.isBranch:
+      result.extend(current_node.children)
+    inc(head)
+
+proc layers*(node: Node): seq[seq[Node]] =
+    ## Returns a 2d list in which each sublist is one more level
+    ## deep than the previous.
+    ## For instance, [PROGRAM [DEFINITION [SEQUENCE
+    ##     [SET 'abc']
+    ##     [GUARD [CHOICE [LITERAL 'a'] [LITERAL 'b']]
+    ##     [OPTIONAL [LITERAL 'c']]
+    ## ]]]
+    ## will return @[
+    ##     @[PROGRAM],
+    ##     @[DEFINITION],
+    ##     @[SEQUENCE],
+    ##     @[SET, GUARD, OPTIONAL],
+    ##     @[CHOICE, LITERAL 'c'],
+    ##     @[LITERAL 'a'],
+    ##     @[LITERAL 'b']
+    ## ]
+    result = @[@[node]]
+    while true:
+        let prevLayer = result[result.len - 1]
+        var newLayer: seq[Node] = @[]
+
+        for node in prevLayer:
+            newLayer.extend(node.children)
+
+        if newLayer.len == 0:
+            break
+        else:
+            result.add(newLayer)
+
+proc ancestors*(node: Node): seq[Node] =
+    result = @[]
+    var curNode = node.parent
+    while not curNode.isNil:
+        result.add(curNode)
+        curNode = curNode.parent
