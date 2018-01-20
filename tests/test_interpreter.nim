@@ -1,6 +1,5 @@
 
 import ../src/lilt/private/parse
-import ../src/lilt/private/verify
 import ../src/lilt/private/types
 import ../src/lilt/private/inner_ast
 import ../src/lilt/private/outer_ast
@@ -153,5 +152,26 @@ test(
     initNode(
         "nBanana",
         {"val": "banana"}
+    )
+)
+
+test(
+    "Lambda test 1",
+    """
+    identifier: *<abcdefghijklmnopqrstuvwxyz>
+    arg: id=identifier
+    funcDecl: "func " id=identifier "(" args={ &arg *[", " &arg] } ");"
+    """,
+    "funcDecl",
+    "func pow(a, b);",
+    initNode(
+        "funcDecl",
+        {
+            "id": ~ "pow",
+            "args": ~ @[
+                initNode("arg", {"id": "a"}),
+                initNode("arg", {"id": "b"})
+            ]
+        }
     )
 )

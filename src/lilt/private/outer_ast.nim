@@ -44,7 +44,7 @@ type Node* = ref object of RootObj
     returnType*: RuleReturnType
     parent*: Node
 
-method typeName(n: Node): string {.base.} =
+method typeName*(n: Node): string {.base.} =
     # Returns the name of the type of the node
     raise new(BaseError)
 
@@ -104,6 +104,21 @@ method nodeProps*(def: Definition): auto =
     return {"body": def.body}.toTable
 
 method typeName(d: Definition): string = "Definition"
+
+# Lambda
+
+type Lambda* = ref object of Node
+    body*: Node  # Choice or sequence
+
+proc newLambda*(body: Node): Lambda =
+    let la = Lambda(body: body)
+    body.parent = la
+    return la
+
+method nodeProps*(la: Lambda): auto =
+    return {"body": la.body}.toTable
+
+method typeName(l: Lambda): string = "Lambda"
 
 # Sequence
 
@@ -249,7 +264,7 @@ proc newProperty*(name: string, inner: Node): Property =
     inner.parent = p
     return p
 
-method textprops*(prop: Property): auto =
+method textProps*(prop: Property): auto =
     return {"name": prop.propName}.toTable
 
 method nodeProps*(prop: Property): auto =
@@ -312,15 +327,15 @@ proc `==`*(node: Node, other: Node): bool =
         node.listProps == other.listProps
 
 proc descendants*(node: Node): seq[Node] =
-  ## Recursively iterates through all descendants of given node.
-  result = node.children
-  var head = 0  # Index of current node we're unpacking
+    ## Recursively iterates through all descendants of given node.
+    result = node.children
+    var head = 0  # Index of current node we're unpacking
 
-  while head < result.len:
-    let current_node = result[head]
-    if current_node.isBranch:
-      result.extend(current_node.children)
-    inc(head)
+    while head < result.len:
+        let current_node = result[head]
+        if current_node.isBranch:
+            result.extend(current_node.children)
+        inc(head)
 
 proc layers*(node: Node): seq[seq[Node]] =
     ## Returns a 2d list in which each sublist is one more level
@@ -358,3 +373,16 @@ proc ancestors*(node: Node): seq[Node] =
     while not curNode.isNil:
         result.add(curNode)
         curNode = curNode.parent
+
+proc scoped*(node: Node): seq[Node] =
+    # Return all of node's descendants, except those contained
+    # inside a Lambda contained inside the given node.
+    result = node.children
+    var head = 0  # Index of current node we're unpacking
+
+    while head < result.len:
+        let currentNode = result[head]
+        if currentNode.isBranch and not (currentNode of Lambda):
+            result.extend(currentNode.children)
+        inc(head)
+ 

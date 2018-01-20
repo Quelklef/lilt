@@ -291,3 +291,17 @@ multipleBananas: *&exNode
 	}
 ]
 ```
+
+### Lambda
+
+A lambda is an inline rule. The syntax looks like: `{ body }`.
+
+Lambdas are useful to create one-off rules, for instance:
+
+```
+identifier: *<abcdefghijklmnopqrstuvwxyz>
+arg: id=identifier
+funcDecl: "func " id=identifier "(" args={ &arg *[", " &arg] } ");"
+```
+
+Note that the `&` works in relation to the _lambda_, not `funcDecl`. This is why they're useful.

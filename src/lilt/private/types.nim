@@ -8,32 +8,86 @@ Definitions are semantically typeless but are a special case; definitions' retur
 All other nodes' return types have semantic meaning.
 ]#
 
+import sets
+import macros
+import hashes
+
 import outer_ast
 import sequtils
 import strutils
 import tables
-from misc import `{}`, BaseError, reversed, findIt
+import misc
 
 type TypeError* = object of Exception
 
-method inferReturnType(node: Node) {.base.} =
-    raise newException(BaseError, "Cannot infer return type for base type Node. Value given: $1" % $node)
+type Known = seq[Node]  # Conceptually a hashset, but use a seq instead
 
-method inferReturnType(prop: Property) =
-    # Properties return the same type as their contained node
+method inferReturnType(node: Node, known: Known) {.base.} =
+    raise new(BaseError)
+
+method canInfer(node: Node, known: Known): bool {.base.} =
+    raise new(BaseError)
+
+#~# Independently typed nodes #~#
+
+method canInfer(prop: Property, known: Known): bool =
+    return true
+method inferReturnType(prop: Property, known: Known) =
     prop.returnType = rrtNone
 
-method inferReturnType(adj: Adjoinment) =
+method canInfer(adj: Adjoinment, known: Known): bool =
+    return true
+method inferReturnType(adj: Adjoinment, known: Known) =
     adj.returnType = rrtNone
 
-method inferReturnType(ext: Extension) =
-    # Properties return the same type as their contained node
+method canInfer(ext: Extension, known: Known): bool =
+    return true
+method inferReturnType(ext: Extension, known: Known) =
     ext.returnType = rrtNone
 
-method inferReturnType(guard: Guard) =
+method canInfer(guard: Guard, known: Known): bool =
+    return true
+method inferReturnType(guard: Guard, known: Known) =
     guard.returnType = rrtNone
 
-method inferReturnType(op: OnePlus) =
+method canInfer(se: Set, known: Known): bool =
+    return true
+method inferReturnType(se: Set, known: Known) =
+    se.returnType = rrtText
+
+method canInfer(lit: Literal, known: Known): bool =
+    return true
+method inferReturnType(lit: Literal, known: Known) =
+    lit.returnType = rrtText
+
+method canInfer(se: Sequence, known: Known): bool =
+    return true
+method inferReturnType(se: Sequence, known: Known) =
+    # Note: verify.nim:verify will already have been
+    # run on the AST before this is called, so no need
+    # to ensure that doesn't contain Extension node and 
+    # Property node
+    if se.scoped.anyIt(it of Adjoinment or it of Property or it of Extension):
+        # Contains statements, so returns nothing
+        se.returnType = rrtNone
+    else:
+        se.returnType = rrtText
+
+method canInfer(def: Definition, known: Known): bool =
+    return true
+method inferReturnType(def: Definition, known: Known) =
+    def.returnType = rrtNone
+
+method canInfer(prog: Program, known: Known): bool =
+    return true
+method inferReturnType(prog: Program, known: Known) =
+    prog.returnType = rrtNone
+
+#~# Dependently typed nodes #~#
+
+method canInfer(op: OnePlus, known: Known): bool =
+    return op.inner in known
+method inferReturnType(op: OnePlus, known: Known) =
     let inner = op.inner
 
     case inner.returnType:
@@ -47,126 +101,96 @@ method inferReturnType(op: OnePlus) =
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
-method inferReturnType(opt: Optional) =
+method canInfer(opt: Optional, known: Known): bool =
+    return opt.inner in known
+method inferReturnType(opt: Optional, known: Known) =
     if opt.inner.returnType == rrtNode:
         opt.returnType = rrtNone
     else:
         opt.returnType = opt.inner.returnType
 
-method inferReturnType(se: Set) =
-    se.returnType = rrtText
-
-method inferReturnType(lit: Literal) =
-    lit.returnType = rrtText
-
-method inferReturnType(re: Reference) =
-    # Ensure that referencing a defined function
-    let programs = re.ancestors
+method canInfer(re: Reference, known: Known): bool =
+    return re.ancestors
         .findIt(it of Program)
-        .Program.descendants
+        .descendants
+        .findIt(it of Definition and it.Definition.id == re.id)
+        .Definition.body.Lambda in known
+method inferReturnType(re: Reference, known: Known) =
+    # Ensure that referencing a defined function
+    let definitions = re.ancestors
+        .findIt(it of Program)
+        .descendants
         .filterIt(it of Definition)
         .mapIt(it.Definition)
 
-    if re.id notin programs.mapIt(it.id):
-        raise newException(TypeError, "Rule '$1' has unknown type." % re.id)
+    if re.id notin definitions.mapIt(it.id):
+        raise newException(TypeError, "No rule '$1'." % re.id)
 
-    re.returnType = programs.findIt(it.id == re.id).returnType
+    re.returnType = definitions.findIt(it.id == re.id).body.returnType
 
-proc allSame[T](s: seq[T]): bool =
-    ## Return if all items in seq are the same value
-    ## Implemented `==` for T must be transitive, i.e.
-    ## A == B && B == C ==> A == C
-    if s.len == 0:
-        return true
-
-    let first = s[0]
-    for item in s:
-        if item != first:
-            return false
-    return true
-
-method inferReturnType(choice: Choice) =
+method canInfer(choice: Choice, known: Known): bool =
+    return choice.children.allIt(it in known)
+method inferReturnType(choice: Choice, known: Known) =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
-        raise newException(TypeError,
-            "Choice must be homogenous. Got types: $2" % [$innerTypes]
-        )
+        raise newException(TypeError, "Choice must be homogenous. Got types: $2" % $innerTypes)
 
     let allTypes = innerTypes[0]  # Type of all inner nodes
+    if allTypes == rrtNone:
+        raise newException(TypeError, "Choice must return non-None type.")
+
     choice.returnType = allTypes
 
-method inferReturnType(se: Sequence) =
-    # Note: verify.nim:verify will already have been
-    # run on the AST before this is called, so no need
-    # to ensure that doesn't contain Extension node and 
-    # Property node
-    let descendants = se.descendants
-    let isTopLevel = se.parent of Definition
-
-    if not isTopLevel:
-        se.returnType = rrtText
-    else:
-        var hasProp, hasAdj, hasExt = false
-
-        for node in descendants:
-            if node of Property:
-                hasProp = true
-            elif node of Adjoinment:
-                hasAdj = true
-            elif node of Extension:
-                hasExt = true
-
-            if hasProp and hasAdj and hasExt:
-                break  # No more searching needs to be done
-
-        # At most one must be true
-        if [hasProp, hasAdj, hasExt].mapIt(if it: 1 else: 0).foldl(a + b) > 1:
-            raise newException(TypeError, "Cannot combine properties and ajointments and extensions.")
-
-        if hasProp:
-            se.returnType = rrtNode
-        elif hasAdj:
-            se.returnType = rrtText
-        elif hasExt:
-            se.returnType = rrtList
-        else:
-            se.returnType = rrtText
-
-method inferReturnType(def: Definition) =
-    discard
-
-method inferReturnType(prog: Program) =
-    discard
-
-proc inferDefinitionReturnTypes*(ast: Node) =
-    let definitionLayer = ast.layers{1}.mapIt(it.Definition)
-
-    for definition in definitionLayer:
-        for node in definition.descendants:
+method canInfer(lamb: Lambda, known: Known): bool =
+    return (lamb.body of Sequence) or
+        (lamb.body of Choice and lamb.body in known)
+method inferReturnType(lamb: Lambda, known: Known) =
+    if lamb.body of Sequence:
+        for node in lamb.scoped:
             if node of Adjoinment:
-                definition.returnType = rrtText
+                lamb.returnType = rrtText
                 break
             elif node of Property:
-                definition.returnType = rrtNode
+                lamb.returnType = rrtnode
                 break
             elif node of Extension:
-                definition.returnType = rrtList
+                lamb.returnType = rrtList
                 break
 
-        if definition.returnType == rrtNone:
-            # If it has none, it returns text
-            definition.returnType = rrtText
+        # TODO: Match conditional to new semantics
+        if lamb.returnType == rrtNone:
+            lamb.returnType = rrtText
+
+    elif lamb.body of Choice:
+        lamb.returnType = lamb.body.returnType
+
+    else:
+        assert false
 
 proc inferReturnTypes*(ast: Node) =
-    let layers = ast.layers
-    let definitionLayer = layers{1}
+    # In reverse order because probably adds efficiency
+    # for reasons I'm too lazy to explain
+    var toInfer = concat(ast.layers.reversed)
+    var known: seq[Node] = @[]
 
-    inferDefinitionReturnTypes(ast)
+    while toInfer.len > 0:
+        var inferredCount = 0
 
-    # Next, infer the types of the rest of the AST
-    for definition in definitionLayer:
-        let innerLayers = definition.layers
-        for layer in innerLayers[1 .. innerLayers.len - 1].reversed:  # [1..~] because we want to exclude the actual definition
-            for node in layer:
-                inferReturnType(node)
+        var head = 0
+        while head < toInfer.len:
+            let node = toInfer[head]
+            if node.canInfer(known):
+                node.inferReturnType(known)
+                inc(inferredCount)
+                toInfer.del(head)
+                known.add(node)
+            else:
+                inc(head)
+
+        if inferredCount == 0:
+            # Made no progress; we can do nothing more
+            break
+
+    if toInfer.len > 0:
+        raise newException(TypeError, "Unable to infer all types.")

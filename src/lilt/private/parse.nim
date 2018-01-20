@@ -53,29 +53,29 @@ They return a variety of things and do not follow any
 specific interface.
 ]#
 
-# NOTE: `phead` stands for `parameter head`
+# NOTE: `head` stands for `parameter head`
 # and is pronounced like `feed` or `fed`
 
-proc consumeWhitespace(phead: int, code: string): int =
+proc consumeWhitespace(head: int, code: string): int =
     ## Consume 0 or more whitespace characters.
     ## Cannot fail
-    var head = phead
+    var head = head
     while code{head} in su.Whitespace:
         inc(head)
     return head
 
-proc consumeDotspace(phead: int, code: string): int =
+proc consumeDotspace(head: int, code: string): int =
     ## Consume all non-'\l' whitespace
     ## Cannot fail
-    var head = phead
+    var head = head
     while code{head} != '\l' and code{head} in su.Whitespace:
         inc(head)
     return head
 
-proc consumeString(phead: int, expect: string, code: string): int =
+proc consumeString(head: int, expect: string, code: string): int =
     ## Consume a static string
     ## Failes if code doesn't start with string
-    var head = phead
+    var head = head
     var actual = code[head ..< head + expect.len]
     if actual == expect:
         return head + expect.len
@@ -95,10 +95,10 @@ const
         "e": "\e",
     }.toTable
 
-proc handleEscapeSequence(phead: int, code: string): (int, string) =
+proc handleEscapeSequence(head: int, code: string): (int, string) =
     ## Consumes an escape sequence, including the '\';
     ## Returns the mapped value as well as the new head
-    var head = phead
+    var head = head
 
     head = head.consumeString($escapeMarker, code)
 
@@ -109,12 +109,12 @@ proc handleEscapeSequence(phead: int, code: string): (int, string) =
     # TODO parse decimal / hex escape codes
     raise newException(ParsingError, "Unkown escape char '$1'." % $code{head})
 
-proc consumeFromSet(phead: int, charset: set[char], specialEscapes: Table[char, string], code: string): (int, string) =
+proc consumeFromSet(head: int, charset: set[char], specialEscapes: Table[char, string], code: string): (int, string) =
     ## Consume while chars are in charset
     ## Handles default escape codes, as well as any special escapes passed in
     ## Return all consumed code as well as new head
     ## Only fails on an invalid escape sequence
-    var head = phead
+    var head = head
     var consumed = ""
     while true:
         let c = code{head}
@@ -135,10 +135,10 @@ proc consumeFromSet(phead: int, charset: set[char], specialEscapes: Table[char, 
     return (head, consumed)
 
 const identifierChars = Letters + Digits + {'_'}
-proc extractIdentifier(phead: int, code: string): (int, string) =
+proc extractIdentifier(head: int, code: string): (int, string) =
     ## Parses out an identifier
     ## Fails on 0-length
-    var head = phead
+    var head = head
     var ide = ""
 
     while code{head} in identifierChars:
@@ -180,12 +180,12 @@ else:
             procNameStr = $procName
 
         result = quote do:
-            proc `procName`(phead: int, code: string): ParserValue =
+            proc `procName`(head: int, code: string): ParserValue =
                 `parser`  # Insert given function under name `procName`
                 debugPush("PARSE: $1" % `procNameStr`)
                 var res: ParserValue
                 try:
-                    res = `procName`(phead, code)  # Call `parser`
+                    res = `procName`(head, code)  # Call `parser`
                 except ParsingError as e:
                     debugPop("FAIL: $1; ERR: $2" % [`procNameStr`, e.msg])
                     raise e
@@ -195,11 +195,11 @@ else:
 
 #~# Actual parser definitions #~#
 
-proc parseExpression(phead: int, code: string): ParserValue
-proc parseBody(phead: int, code: string): ParserValue
+proc parseExpression(head: int, code: string): ParserValue
+proc parseBody(head: int, code: string): ParserValue
 
-proc parseReference(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseReference(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     var ide: string
     (head, ide) = head.extractIdentifier(code)
@@ -208,8 +208,8 @@ proc parseReference(phead: int, code: string): ParserValue {.debug.} =
 
 const literalEscapes = {'"': "\""}.toTable
 const literalCharset = AllChars - {'"'}
-proc parseLiteral(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseLiteral(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     head = head.consumeString("\"", code)
     var literal: string
@@ -220,8 +220,8 @@ proc parseLiteral(phead: int, code: string): ParserValue {.debug.} =
 
 const setEscapes = {'<': "<", '>': ">"}.toTable
 const setCharset = AllChars - {'<', '>'}
-proc parseSet(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseSet(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     head = head.consumeString("<", code)
     var charset: string
@@ -230,8 +230,8 @@ proc parseSet(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newSet(charset))
 
-proc parseOptional(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseOptional(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     head = head.consumeString("?", code)
     var innerNode: outer_ast.Node
@@ -239,8 +239,8 @@ proc parseOptional(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newOptional(innerNode))
 
-proc parseOnePlus(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseOnePlus(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     head = head.consumeString("+", code)
     var innerNode: outer_ast.Node
@@ -248,9 +248,9 @@ proc parseOnePlus(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newOnePlus(innerNode))
 
-proc parseZeroPlus(phead: int, code: string): ParserValue {.debug.} =
+proc parseZeroPlus(head: int, code: string): ParserValue {.debug.} =
     # We define `*expr` to actually just be a macro for `?+expr`.
-    var head = phead
+    var head = head
 
     head = head.consumeString("*", code)
     var innerNode: outer_ast.Node
@@ -258,8 +258,8 @@ proc parseZeroPlus(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newOptional(outer_ast.newOnePlus(innerNode)))
 
-proc parseGuard(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseGuard(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     head = head.consumeString("!", code)
     var innerNode: outer_ast.Node
@@ -267,9 +267,9 @@ proc parseGuard(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newGuard(innerNode))
 
-proc parseBrackets(phead: int, code: string): ParserValue {.debug.} =
+proc parseBrackets(head: int, code: string): ParserValue {.debug.} =
     # Like groups in other languages
-    var head = phead
+    var head = head
 
     head = head.consumeString("[", code)
     head = head.consumeWhitespace(code)
@@ -282,8 +282,8 @@ proc parseBrackets(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, innerNode)
 
-proc parseExtension(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseExtension(head: int, code: string): ParserValue {.debug.} =
+    var head = head
     
     head = head.consumeString("&", code)
     
@@ -292,8 +292,8 @@ proc parseExtension(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newExtension(innerNode))
 
-proc parseAdjoinment(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseAdjoinment(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     head = head.consumeString("$", code)
 
@@ -302,8 +302,8 @@ proc parseAdjoinment(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newAdjoinment(innerNode))
 
-proc parseProperty(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseProperty(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     var propertyName: string
     (head, propertyName) = head.extractIdentifier(code)
@@ -315,7 +315,21 @@ proc parseProperty(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newProperty(propertyName, innerNode))
 
-proc parseExpression(phead: int, code: string): ParserValue {.debug.} =
+proc parseLambda(head: int, code: string): ParserValue {.debug.} =
+    var head = head
+
+    head = head.consumeString("{", code)
+    head = head.consumeWhitespace(code)
+
+    var innerNode: outer_ast.Node
+    (head, innerNode) = head.parseBody(code)
+
+    head = head.consumeWhitespace(code)
+    head = head.consumeString("}", code)
+
+    return (head, outer_ast.newLambda(innerNode))
+
+proc parseExpression(head: int, code: string): ParserValue {.debug.} =
     const options: seq[Parser] = @[
         Parser(parseProperty), # Must go before parseReference because starts with an identifier
         Parser(parseReference),
@@ -328,23 +342,24 @@ proc parseExpression(phead: int, code: string): ParserValue {.debug.} =
         Parser(parseZeroPlus),
         Parser(parseGuard),
         Parser(parseBrackets),
+        Parser(parseLambda)
     ]
 
     for option in options:
         try:
-            return option(phead, code)
+            return option(head, code)
         except ParsingError: discard
 
     raise newException(ParsingError, "Matched no option.")
 
-proc parseChoice(phead: int, code: string): ParserValue {.debug.} =
+proc parseChoice(head: int, code: string): ParserValue {.debug.} =
     var
-        head = phead
+        head = head
         innerNodes: seq[outer_ast.Node] = @[]
         isFirst = true
         passedAtLeastOnePipe = false
 
-    while head < code.len:
+    while true:
         if not isFirst:
             head = head.consumeWhitespace(code)  # Allow space before pipe
             if code{head} != '|':
@@ -364,8 +379,8 @@ proc parseChoice(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newChoice(innerNodes))
 
-proc parseSequence(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseSequence(head: int, code: string): ParserValue {.debug.} =
+    var head = head
     var innerNodes: seq[outer_ast.Node] = @[]
 
     var innerNode: outer_ast.Node
@@ -388,7 +403,7 @@ proc parseSequence(phead: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newSequence(innerNodes))
 
-proc parseBody(phead: int, code: string): ParserValue {.debug.} =
+proc parseBody(head: int, code: string): ParserValue {.debug.} =
     const options = @[
         parseChoice,
         parseSequence,
@@ -396,13 +411,13 @@ proc parseBody(phead: int, code: string): ParserValue {.debug.} =
 
     for option in options:
         try:
-            return option(phead, code)
+            return option(head, code)
         except ParsingError: discard
 
     raise newException(ParsingError, "Matched no options.")
 
-proc parseDefinition(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     var ide: string
     (head, ide) = head.extractIdentifier(code)
@@ -413,10 +428,10 @@ proc parseDefinition(phead: int, code: string): ParserValue {.debug.} =
     var body: outer_ast.Node
     (head, body) = head.parseBody(code)
 
-    return (head, outer_ast.newDefinition(ide, body))
+    return (head, outer_ast.newDefinition(ide, newLambda(body)))
 
-proc parseProgram(phead: int, code: string): ParserValue {.debug.} =
-    var head = phead
+proc parseProgram(head: int, code: string): ParserValue {.debug.} =
+    var head = head
 
     var definitions: seq[outer_ast.Node] = @[]
 
