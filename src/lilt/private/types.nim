@@ -28,42 +28,37 @@ method inferReturnType(node: Node, known: Known) {.base.} =
 method canInfer(node: Node, known: Known): bool {.base.} =
     raise new(BaseError)
 
-# TODO: Remove this stupid proc
-proc realize(node: Node, returnType: RuleReturnType, known: Known) =
-    # "realize" the return type of the node
-    node.returnType = returnType
-
 #~# Independently typed nodes #~#
 
 method canInfer(prop: Property, known: Known): bool =
     return true
 method inferReturnType(prop: Property, known: Known) =
-    prop.realize(rrtNone, known)
+    prop.returnType = rrtNone
 
 method canInfer(adj: Adjoinment, known: Known): bool =
     return true
 method inferReturnType(adj: Adjoinment, known: Known) =
-    adj.realize(rrtNone, known)
+    adj.returnType = rrtNone
 
 method canInfer(ext: Extension, known: Known): bool =
     return true
 method inferReturnType(ext: Extension, known: Known) =
-    ext.realize(rrtNone, known)
+    ext.returnType = rrtNone
 
 method canInfer(guard: Guard, known: Known): bool =
     return true
 method inferReturnType(guard: Guard, known: Known) =
-    guard.realize(rrtNone, known)
+    guard.returnType = rrtNone
 
 method canInfer(se: Set, known: Known): bool =
     return true
 method inferReturnType(se: Set, known: Known) =
-    se.realize(rrtText, known)
+    se.returnType = rrtText
 
 method canInfer(lit: Literal, known: Known): bool =
     return true
 method inferReturnType(lit: Literal, known: Known) =
-    lit.realize(rrtText, known)
+    lit.returnType = rrtText
 
 method canInfer(se: Sequence, known: Known): bool =
     return true
@@ -74,19 +69,19 @@ method inferReturnType(se: Sequence, known: Known) =
     # Property node
     if se.scoped.anyIt(it of Adjoinment or it of Property or it of Extension):
         # Contains statements, so returns nothing
-        se.realize(rrtNone, known)
+        se.returnType = rrtNone
     else:
-        se.realize(rrtText, known)
+        se.returnType = rrtText
 
 method canInfer(def: Definition, known: Known): bool =
     return true
 method inferReturnType(def: Definition, known: Known) =
-    def.realize(rrtNone, known)
+    def.returnType = rrtNone
 
 method canInfer(prog: Program, known: Known): bool =
     return true
 method inferReturnType(prog: Program, known: Known) =
-    prog.realize(rrtNone, known)
+    prog.returnType = rrtNone
 
 #~# Dependently typed nodes #~#
 
@@ -97,12 +92,12 @@ method inferReturnType(op: OnePlus, known: Known) =
 
     case inner.returnType:
     of rrtText:
-        op.realize(rrtText, known)
+        op.returnType = rrtText
     of rrtNode:
-        op.realize(rrtList, known)
+        op.returnType = rrtList
     of rrtNone:
         # If typeless, execute statement several times and return nothing
-        op.realize(rrtNone, known)
+        op.returnType = rrtNone
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
@@ -110,9 +105,9 @@ method canInfer(opt: Optional, known: Known): bool =
     return opt.inner in known
 method inferReturnType(opt: Optional, known: Known) =
     if opt.inner.returnType == rrtNode:
-        opt.realize(rrtNone, known)
+        opt.returnType = rrtNone
     else:
-        opt.realize(opt.inner.returnType, known)
+        opt.returnType = opt.inner.returnType
 
 method canInfer(re: Reference, known: Known): bool =
     return re.ancestors
@@ -131,7 +126,7 @@ method inferReturnType(re: Reference, known: Known) =
     if re.id notin definitions.mapIt(it.id):
         raise newException(TypeError, "No rule '$1'." % re.id)
 
-    re.realize(definitions.findIt(it.id == re.id).body.returnType, known)
+    re.returnType = definitions.findIt(it.id == re.id).body.returnType
 
 method canInfer(choice: Choice, known: Known): bool =
     return choice.children.allIt(it in known)
@@ -145,7 +140,7 @@ method inferReturnType(choice: Choice, known: Known) =
     if allTypes == rrtNone:
         raise newException(TypeError, "Choice must return non-None type.")
 
-    choice.realize(allTypes, known)
+    choice.returnType = allTypes
 
 method canInfer(lamb: Lambda, known: Known): bool =
     return (lamb.body of Sequence) or
@@ -154,21 +149,21 @@ method inferReturnType(lamb: Lambda, known: Known) =
     if lamb.body of Sequence:
         for node in lamb.scoped:
             if node of Adjoinment:
-                lamb.realize(rrtText, known)
+                lamb.returnType = rrtText
                 break
             elif node of Property:
-                lamb.realize(rrtnode, known)
+                lamb.returnType = rrtnode
                 break
             elif node of Extension:
-                lamb.realize(rrtList, known)
+                lamb.returnType = rrtList
                 break
 
         # TODO: Match conditional to new semantics
         if lamb.returnType == rrtNone:
-            lamb.realize(rrtText, known)
+            lamb.returnType = rrtText
 
     elif lamb.body of Choice:
-        lamb.realize(lamb.body.returnType, known)
+        lamb.returnType = lamb.body.returnType
 
     else:
         assert false
