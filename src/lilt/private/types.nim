@@ -116,6 +116,7 @@ method canInfer(re: Reference, known: Known): bool =
         .findIt(it of Definition and it.Definition.id == re.id)
         .Definition.body.Lambda in known
 method inferReturnType(re: Reference, known: Known) =
+    # TODO Will not nicely fail if referencing an undefined rule
     # Ensure that referencing a defined function
     let definitions = re.ancestors
         .findIt(it of Program)

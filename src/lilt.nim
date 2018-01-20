@@ -12,7 +12,6 @@ export base
 import lilt/private/interpret
 import lilt/private/outer_ast
 import lilt/private/parse
-import lilt/private/verify
 import lilt/private/types
 
 import tables
@@ -24,7 +23,6 @@ proc makeParser*(code: string): proc(text: string): inner_ast.Node =
     ## correlating to the Rule 'main' (which must return a Node)
     let ast: outer_ast.Node = parse.parseProgram(code)
 
-    verify.verify(ast)
     types.inferReturnTypes(ast)
 
     let definitions: TableRef[string, Rule] = translate(Program(ast))
@@ -33,16 +31,17 @@ proc makeParser*(code: string): proc(text: string): inner_ast.Node =
         raise newException(ValueError, "Must have a rule named 'main'.")
 
     let mainNode = ast.descendants.findIt(it of Definition and it.Definition.id == "main")
-    if mainNode.returnType != rrtNode:
+    if mainNode.Definition.body.returnType != rrtNode:
         raise newException(ValueError, "Rule 'main' must return type Node.")
 
     let rule: Rule = definitions["main"]
 
     return proc(text: string): inner_ast.Node =    
-        let ruleVal = rule(0, text, initCurrentResult(
+        let ruleVal = rule(0, text, initLambdaState(
             ast.Program
                 .definitions
                 .findIt(it.Definition.id == "main")
+                .Definition.body.Lambda
                 .returnType.toLiltType
         ))
 

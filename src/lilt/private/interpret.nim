@@ -315,7 +315,7 @@ method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
     var rule: proc(head: int, text: string, lambdaState: LambdaState): RuleVal
 
-    if o.inner.returnType in [rrtNone, rrtNode]:
+    if o.inner.returnType == rrtNone:
         rule = proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
             return innerRule(head, text, lambdaState).hcr
 
