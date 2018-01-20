@@ -95,3 +95,16 @@ test(
   ])
 )
 ]#
+
+test(
+  "Lambda 1",
+  "lambTest: { <a> }",
+  newProgram(@[
+    newDefinition(
+      "lambTest",
+      newLambda(newSequence(@[
+        newLambda(newSequence(@[ newSet("a").Node ])).Node
+      ]))
+    ).Node
+  ])
+)

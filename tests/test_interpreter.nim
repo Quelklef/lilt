@@ -154,3 +154,24 @@ test(
         {"val": "banana"}
     )
 )
+
+test(
+    "Lambda test 1",
+    """
+    identifier: *<abcdefghijklmnopqrstuvwxyz>
+    arg: id=identifier
+    funcDecl: "func " id=identifier "(" args={ &arg *[", " &arg] } ");"
+    """,
+    "funcDecl",
+    "func pow(a, b);",
+    initNode(
+        "funcDecl",
+        {
+            "id": ~ "pow",
+            "args": ~ @[
+                initNode("arg", {"id": "a"}),
+                initNode("arg", {"id": "b"})
+            ]
+        }
+    )
+)

@@ -315,6 +315,20 @@ proc parseProperty(head: int, code: string): ParserValue {.debug.} =
 
     return (head, outer_ast.newProperty(propertyName, innerNode))
 
+proc parseLambda(head: int, code: string): ParserValue {.debug.} =
+    var head = head
+
+    head = head.consumeString("{", code)
+    head = head.consumeWhitespace(code)
+
+    var innerNode: outer_ast.Node
+    (head, innerNode) = head.parseBody(code)
+
+    head = head.consumeWhitespace(code)
+    head = head.consumeString("}", code)
+
+    return (head, outer_ast.newLambda(innerNode))
+
 proc parseExpression(head: int, code: string): ParserValue {.debug.} =
     const options: seq[Parser] = @[
         Parser(parseProperty), # Must go before parseReference because starts with an identifier
@@ -328,6 +342,7 @@ proc parseExpression(head: int, code: string): ParserValue {.debug.} =
         Parser(parseZeroPlus),
         Parser(parseGuard),
         Parser(parseBrackets),
+        Parser(parseLambda)
     ]
 
     for option in options:
@@ -344,7 +359,7 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
         isFirst = true
         passedAtLeastOnePipe = false
 
-    while head < code.len:
+    while true:
         if not isFirst:
             head = head.consumeWhitespace(code)  # Allow space before pipe
             if code{head} != '|':
