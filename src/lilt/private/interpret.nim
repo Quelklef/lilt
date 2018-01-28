@@ -188,6 +188,12 @@ template toRule[T](s: set[T]): Rule =
     translate(newSet(s), emptyContext)
 
 let builtins = {
+    "newline": translate(
+        newOptional(newOnePlus(
+            newSet("\r\l")
+        )),
+        emptyContext
+    ),
     "whitespace": strutils.Whitespace.toRule,
     "_": translate(
         newOptional(newOnePlus(

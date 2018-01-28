@@ -85,7 +85,6 @@ const
     escapeMarker = '\\'
     universalStaticEscapes = {
         '\\': "\\",
-        'n': "\r\l",
         't': "\t",
         'r': "\r",
         'c': "\c",

@@ -30,15 +30,16 @@ Extension                        :code:`&rule`                    Appends a node
 Builtins
 --------
 
-================================ ===================================================
+================================ ===================================================================
 Name                             Description or equivalent code
-================================ ===================================================
+================================ ===================================================================
 :code:`any`                      Matches any single character
+:code:`newline`                  :code:`*<\c\l>`. Use in lieu of :code:`\n`, which doesn't exist.
 :code:`whitespace`               Matches any single whitespace character
-:code:`_`                        `*whitespace`
-:code:`lower`                    `<abcdefghijklmnopqrstuvwxyz>`
-:code:`upper`                    `<ABCDEFGHIJKLMNOPQRSTUVWXYZ>`
-:code:`alpha`                    `lower | upper`
-:code:`digit`                    `<1234567890>`
-:code:`alphanum`                 `alpha | digit`
-================================ ===================================================
+:code:`_`                        :code:`*whitespace`
+:code:`lower`                    :code:`<abcdefghijklmnopqrstuvwxyz>`
+:code:`upper`                    :code:`<ABCDEFGHIJKLMNOPQRSTUVWXYZ>`
+:code:`alpha`                    :code:`lower | upper`
+:code:`digit`                    :code:`<1234567890>`
+:code:`alphanum`                 :code:`alpha | digit`
+================================ ===================================================================
