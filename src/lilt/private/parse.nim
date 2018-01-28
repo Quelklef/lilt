@@ -1,5 +1,5 @@
 
-import strutils as su
+import strutils
 import tables
 
 import macros
@@ -56,21 +56,31 @@ specific interface.
 # NOTE: `head` stands for `parameter head`
 # and is pronounced like `feed` or `fed`
 
-proc consumeWhitespace(head: int, code: string): int =
-    ## Consume 0 or more whitespace characters.
-    ## Cannot fail
-    var head = head
-    while code{head} in su.Whitespace:
-        inc(head)
-    return head
+proc consumeComment(head: int, code: string): int
 
-proc consumeDotspace(head: int, code: string): int =
-    ## Consume all non-'\l' whitespace
-    ## Cannot fail
+proc consumeDeadspace(head: int, code: string): int =
+    ## Consumes whitespace and comments
     var head = head
-    while code{head} != '\l' and code{head} in su.Whitespace:
-        inc(head)
-    return head
+    while true:
+        if code{head} in strutils.Whitespace:
+            inc(head)
+        elif code{head} == '/':
+            head = head.consumeComment(code)
+        else:
+            return head
+
+const dotSpace = strutils.Whitespace - strutils.NewLines
+proc consumeDotdead(head: int, code: string): int =
+    ## Consume non-newline whitespace
+    ## as well as comments
+    var head = head
+    while true:
+        if code{head} in dotSpace:
+            inc(head)
+        elif code{head} == '/':
+            head = head.consumeComment(code)
+        else:
+            return head
 
 proc consumeString(head: int, expect: string, code: string): int =
     ## Consume a static string
@@ -80,6 +90,55 @@ proc consumeString(head: int, expect: string, code: string): int =
     if actual == expect:
         return head + expect.len
     raise newException(ParsingError, "Expected string '$1', got '$2'." % [expect, actual])
+
+proc consumeBlockComment(head: int, code: string): int =
+    var head = head
+    head = head.consumeString("/(", code)
+    # We allow for nested comments; keep track of depth
+    var depth = 1
+
+    while true:
+        let c = code{head}
+
+        if c == '\0':
+            raise newException(ParsingError, "End of file reached before comment finished.")
+        elif c == '/':
+            # Beginning of block comment
+            if code{head + 1} != '(':
+                raise newException(ParsingError, "Expected '(' after '/'.")
+
+            head += 2
+            inc(depth)
+        elif c == ')':
+            depth -= 1
+            head += 1
+        else:
+            head += 1
+
+        if depth == 0:
+            return head
+
+proc consumeLineComment(head: int, code: string): int =
+    var head = head
+    head = head.consumeString("/", code)
+
+    while code{head} notin strutils.NewLines and code{head} != '\0':
+        inc(head)
+
+    if code{head} == '\0':
+        return head
+
+    # consume all \c and all \l
+    while code{head} in strutils.NewLines:
+        inc(head)
+    return head
+
+proc consumeComment(head: int, code: string): int =
+    if code{head} == '/':
+        if code{head + 1} == '(':
+            return head.consumeBlockComment(code)
+        return head.consumeLineComment(code)
+    raise newException(ParsingError, "Comments must begin with '/'.")
 
 const
     escapeMarker = '\\'
@@ -269,12 +328,12 @@ proc parseBrackets(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("[", code)
-    head = head.consumeWhitespace(code)
+    head = head.consumeDeadspace(code)
 
     var innerNode: outer_ast.Node
     (head, innerNode) = head.parseBody(code)
 
-    head = head.consumeWhitespace(code)
+    head = head.consumeDeadspace(code)
     head = head.consumeString("]", code)
 
     return (head, innerNode)
@@ -316,12 +375,12 @@ proc parseLambda(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("{", code)
-    head = head.consumeWhitespace(code)
+    head = head.consumeDeadspace(code)
 
     var innerNode: outer_ast.Node
     (head, innerNode) = head.parseBody(code)
 
-    head = head.consumeWhitespace(code)
+    head = head.consumeDeadspace(code)
     head = head.consumeString("}", code)
 
     return (head, outer_ast.newLambda(innerNode))
@@ -358,7 +417,7 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
 
     while true:
         if not isFirst:
-            head = head.consumeWhitespace(code)  # Allow space before pipe
+            head = head.consumeDeadspace(code)  # Allow space before pipe
             if code{head} != '|':
                 if passedAtLeastOnePipe:
                     break  # End of or expression; return
@@ -366,7 +425,7 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
                     raise newException(ParsingError, "Expected at least one pipe.")
             passedAtLeastOnePipe = true
             head.inc  # Consume pipe
-            head = head.consumeWhitespace(code)  # Allow space after pipe
+            head = head.consumeDeadspace(code)  # Allow space after pipe
         else:
             isFirst = false
 
@@ -387,7 +446,7 @@ proc parseSequence(head: int, code: string): ParserValue {.debug.} =
         let headBeforeConsumingSpace = head
         if not isFirstItem:
             # Consume space between items
-            head = head.consumeDotspace(code)
+            head = head.consumeDotdead(code)
 
         try:
             (head, innerNode) = head.parseExpression(code)
@@ -430,7 +489,7 @@ proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
     (head, ide) = head.extractIdentifier(code)
 
     head = head.consumeString(":", code)
-    head = head.consumeWhitespace(code)  # Allow whitespace between ':' and body
+    head = head.consumeDeadspace(code)  # Allow whitespace between ':' and body
 
     var body: outer_ast.Node
     (head, body) = head.parseBody(code)
@@ -443,12 +502,12 @@ proc parseProgram(head: int, code: string): ParserValue {.debug.} =
 
     var definitions: seq[outer_ast.Node] = @[]
 
-    head = head.consumeWhitespace(code)
+    head = head.consumeDeadspace(code)
     while head < code.len:
         var definition: outer_ast.Node
         (head, definition) = head.parseDefinition(code)
         definitions.add(definition)
-        head = head.consumeWhitespace(code)
+        head = head.consumeDeadspace(code)
 
     return (head, outer_ast.newProgram(definitions))
 
@@ -481,3 +540,4 @@ expose(parseSet)
 expose(parseLiteral)
 expose(parseReference)
 expose(parseAdjoinment)
+expose(parseLambda)

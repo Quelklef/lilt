@@ -74,27 +74,23 @@ test(
   ])
 )
 
-#[
 test(
   "Comments 1",
   """
-  . Block comment!
-  .... More dots inside the comment ...... .. . .. . .. . . .
-  vowel: <aeiou>.This is a comment
-  . . .. more dots b.c why not
-  . Let's add some code in the comments:
-  . code: <code>
+   /( Block comment! )
+   / Line comment
+  vowel: <aeiou>/This is a comment
+  /(/( nest a comment
+  Let's add /() some code in the comments:
+  code: <code> ))
   """,
   newProgram(@[
     newDefinition(
       "vowel",
-      newSequence(@[
-        newSet("aeiou").Node
-      ])
+      newLambda(newSet("aeiou"))
     ).Node
   ])
 )
-]#
 
 test(
   "Lambda 1",
