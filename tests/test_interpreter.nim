@@ -1,7 +1,7 @@
 
 import ../src/lilt/private/parse
 import ../src/lilt/private/types
-import ../src/lilt/private/inner_ast
+import ../src/lilt/inner_ast
 import ../src/lilt/private/outer_ast
 import ../src/lilt/private/interpret
 

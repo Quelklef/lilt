@@ -17,7 +17,7 @@ import strutils as su
 import sequtils
 
 import outer_ast
-import inner_ast
+import ../inner_ast
 import strfix
 import parse
 import types

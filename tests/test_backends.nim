@@ -1,7 +1,7 @@
 
 import strutils
 
-import ../src/lilt/private/inner_ast
+import ../src/lilt/inner_ast
 import json
 
 template test(testName: string, ast: Node, json: JsonNode) =
