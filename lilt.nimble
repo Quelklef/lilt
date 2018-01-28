@@ -10,4 +10,3 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 0.17.2"
-requires "docopt >= 0.6.5"
