@@ -24,9 +24,12 @@ incremented="false"
 
 if [ "$1" = "maj" ]; then
     maj="$(( maj + 1 ))"
+    min="0"
+    pat="0"
     incremented="true"
 elif [ "$1" = "min" ]; then
     min="$(( min + 1 ))"
+    pat="0"
     incremented="true"
 elif [ "$1" = "pat" ]; then
     pat="$(( pat + 1 ))"
