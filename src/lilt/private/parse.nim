@@ -84,15 +84,15 @@ proc consumeString(head: int, expect: string, code: string): int =
 const
     escapeMarker = '\\'
     universalStaticEscapes = {
-        "\\": "\\",
-        "n": "\r\l",
-        "t": "\t",
-        "r": "\r",
-        "c": "\c",
-        "l": "\l",
-        "a": "\a",
-        "b": "\b",
-        "e": "\e",
+        '\\': "\\",
+        'n': "\r\l",
+        't': "\t",
+        'r': "\r",
+        'c': "\c",
+        'l': "\l",
+        'a': "\a",
+        'b': "\b",
+        'e': "\e",
     }.toTable
 
 proc handleEscapeSequence(head: int, code: string): (int, string) =
@@ -102,11 +102,9 @@ proc handleEscapeSequence(head: int, code: string): (int, string) =
 
     head = head.consumeString($escapeMarker, code)
 
-    if universalStaticEscapes.hasKey($code{head}):
-        # TODO: Won't work if a key is >1 in length
-        return (head + 1, universalStaticEscapes[$code{head}])
+    if universalStaticEscapes.hasKey(code{head}):
+        return (head + 1, universalStaticEscapes[code{head}])
 
-    # TODO parse decimal / hex escape codes
     raise newException(ParsingError, "Unkown escape char '$1'." % $code{head})
 
 proc consumeFromSet(head: int, charset: set[char], specialEscapes: Table[char, string], code: string): (int, string) =
@@ -382,20 +380,29 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
 proc parseSequence(head: int, code: string): ParserValue {.debug.} =
     var head = head
     var innerNodes: seq[outer_ast.Node] = @[]
+    var isFirstItem = true
 
     var innerNode: outer_ast.Node
     while head < code.len:
+
+        let headBeforeConsumingSpace = head
+        if not isFirstItem:
+            # Consume space between items
+            head = head.consumeDotspace(code)
+
         try:
             (head, innerNode) = head.parseExpression(code)
         except ParsingError:
+            # Only consume space between items, not after last item
+            head = headBeforeConsumingSpace
             break
+
+        isFirstItem = false
 
         # Allow dotspace between simple expressions
         # Don't allow newlines because then identifiers
         # at the beginning of definitions may be parsed as
         # references instead
-        # TODO: Will consume code after sequence
-        head = head.consumeDotspace(code)
         innerNodes.add(innerNode)
 
     if innerNodes.len < 2:
@@ -429,7 +436,8 @@ proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
     var body: outer_ast.Node
     (head, body) = head.parseBody(code)
 
-    return (head, outer_ast.newDefinition(ide, newLambda(body)))
+    let lamb = newLambda(body, ide)
+    return (head, outer_ast.newDefinition(ide, lamb))
 
 proc parseProgram(head: int, code: string): ParserValue {.debug.} =
     var head = head

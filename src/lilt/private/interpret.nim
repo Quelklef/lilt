@@ -195,10 +195,8 @@ method translate(lamb: Lambda, context: LiltContext): Rule =
         # Each lambda call gets its own context, so create one.
         var returnVal = innerRule(head, text, initLambdaState(lamb.returnType.toLiltType))
 
-        # TODO: A lot of logic in this method feels misplaced
-        # We shouldn't be checking what the type of the body is
-        # nor should we be checking if it's top-level
-        # Somehow, all of this needs to be handled with typing (or a replacement)
+        # TODO: Should we be checking the type of the body here?
+        # Should it be handled earlier?
 
         if lamb.body of Choice:
             case lamb.returnType:
@@ -212,14 +210,6 @@ method translate(lamb: Lambda, context: LiltContext): Rule =
                 assert false
 
         else:
-            if lamb.returnType == rrtNode:
-                # TODO either:
-                # 1. Extend lambdas to be able to return node from anywhere
-                # 2. Disallow returning a node from a lambda
-                let isTopLevel = lamb.parent of Definition
-                assert isTopLevel
-                returnVal.lambdaState.node.kind = lamb.parent.Definition.id
-
             case lamb.returnType:
             of rrtText:
                 let hasAdj = lamb.scoped.anyIt(it of Adjoinment)
@@ -230,6 +220,7 @@ method translate(lamb: Lambda, context: LiltContext): Rule =
                     # Text found via return
                     return (returnVal.head, returnVal.text, lambdaState)
             of rrtNode:
+                returnVal.lambdaState.node.kind = lamb.returnNodeKind
                 return (returnVal.head, returnVal.lambdaState.node, lambdaState)
             of rrtList:
                 return (returnVal.head, returnVal.lambdaState.list, lambdaState)

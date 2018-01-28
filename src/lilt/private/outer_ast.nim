@@ -109,11 +109,17 @@ method typeName(d: Definition): string = "Definition"
 
 type Lambda* = ref object of Node
     body*: Node  # Choice or sequence
+    # If returning a node, we need to know the kind of the node
+    # it's returning.
+    returnNodeKind*: string
 
-proc newLambda*(body: Node): Lambda =
-    let la = Lambda(body: body)
+proc newLambda*(body: Node, returnNodeKind: string): Lambda =
+    let la = Lambda(body: body, returnNodeKind: returnNodeKind)
     body.parent = la
     return la
+
+proc newLambda*(body: Node): Lambda =
+    return newLambda(body, nil)
 
 method nodeProps*(la: Lambda): auto =
     return {"body": la.body}.toTable
@@ -317,11 +323,9 @@ proc isLeaf*(n: Node): bool =
     return not n.isBranch
 
 proc `==`*(node: Node, other: Node): bool =
-    # NOTE: This does not verifiy that the two nodes' have matching
-    # return type. This is intentional.
-    # TODO: This should not rely on .typeName
-    # There must be another way to check if two nodes are of the same type.
-    return node.typeName == other.typeName and
+    ## NOTE: This does not verifiy that the two nodes' have matching
+    ## return type. This is intentional.
+    return node of other.type and other of node.type and  # Ensure of same type
         node.textProps == other.textProps and
         node.nodeProps == other.nodeProps and
         node.listProps == other.listProps

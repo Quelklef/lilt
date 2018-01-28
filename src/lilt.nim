@@ -3,7 +3,7 @@
 Lilt API
 ]#
 
-import lilt/private/inner_ast
+import lilt/inner_ast
 export inner_ast
 
 import lilt/private/base

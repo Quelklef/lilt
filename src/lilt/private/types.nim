@@ -19,6 +19,7 @@ import tables
 import misc
 
 type TypeError* = object of Exception
+type ReferenceError* = object of Exception
 
 type Known = seq[Node]  # Conceptually a hashset, but use a seq instead
 
@@ -105,14 +106,17 @@ method inferReturnType(opt: Optional, known: Known): RuleReturnType =
         return opt.inner.returnType
 
 method canInfer(re: Reference, known: Known): bool =
-    return re.ancestors
+    let definitions = re.ancestors
         .findOf(Program)
         .descendants.filterOf(Definition)
+
+    if re.id notin definitions.mapIt(it.id):
+        raise newException(ReferenceError, "No rule named '$1'." % re.id) 
+
+    return definitions
         .findIt(it.id == re.id)
         .body.Lambda in known
 method inferReturnType(re: Reference, known: Known): RuleReturnType =
-    # TODO Will not nicely fail if referencing an undefined rule
-    # Ensure that referencing a defined function
     let definitions = re.ancestors
         .findOf(Program)
         .descendants
@@ -143,19 +147,16 @@ method canInfer(lamb: Lambda, known: Known): bool =
         (body of Choice and body in known) or
         (body of Adjoinment or body of Property or body of Extension) or
         (body in known)
-method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
+proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
     if lamb.body of Sequence:
         for node in lamb.scoped:
             if node of Adjoinment:
                 return rrtText
             elif node of Property:
-                return rrtnode
+                return rrtNode
             elif node of Extension:
                 return rrtList
-
-        # TODO: Match conditional to new semantics
-        if lamb.returnType == rrtNone:
-            return rrtText
+        return rrtText
 
     elif lamb.body of Choice:
         return lamb.body.returnType
@@ -172,6 +173,15 @@ method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
             return rrtText
         else:
             return lamb.body.returnType
+method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
+    let rt = inferReturnTypeUnsafe(lamb, known)
+
+    if rt == rrtNode:
+        let isTopLevel = lamb.parent of Definition
+        if not isTopLevel:
+            raise newException(TypeError, "Only top-level Lambdas may return nodes.")
+
+    return rt
 
 proc inferReturnTypes*(ast: Node) =
     # In reverse order because probably adds efficiency
