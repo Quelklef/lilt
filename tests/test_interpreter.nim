@@ -28,18 +28,6 @@ proc test(testName: string, code: string, rule: string, input: string, expected:
         assert false
     echo "Passed"
 
-# The following procs exist only to reduce syntactic bulk and
-# increase readibility of the following code.
-# When reading, they may be safely ignored.
-proc `~`(text: string): inner_ast.Property = 
-    return initProperty(text)
-
-proc `~`(node: inner_ast.Node): inner_ast.Property =
-    return initProperty(node)
-
-proc `~`(list: seq[inner_ast.Node]): inner_ast.Property =
-    return initProperty(list)
-
 test(
     "Interpreter test 1",
     """
@@ -49,18 +37,31 @@ test(
     """,
     "sentenceNode",
     "several, words, in, a, sentence",
-    initNode(
-        "sentenceNode",
-        {
-            "sentence": @[
-                initNode("word", {"val": "several"}),
-                initNode("word", {"val": "words"}),
-                initNode("word", {"val": "in"}),
-                initNode("word", {"val": "a"}),
-                initNode("word", {"val": "sentence"}),
-            ]
-        }
-    )
+    ~~ {
+        "kind": "sentenceNode",
+        "sentence": [
+            {
+                "kind": "word",
+                "val": "several"
+            },
+            {
+                "kind": "word",
+                "val": "words"
+            },
+            {
+                "kind": "word",
+                "val": "in"
+            },
+            {
+                "kind": "word",
+                "val": "a"
+            },
+            {
+                "kind": "word",
+                "val": "sentence"
+            }
+        ]
+    }
 )
 
 test(
@@ -72,10 +73,10 @@ test(
     """,
     "consoWord",
     "bhjdsjkeaklj",
-    initNode(
-        "consoWord",
-        {"letters": "bhjdsjk"}
-    )
+    ~~ {
+        "kind": "consoWord",
+        "letters": "bhjdsjk"
+    }
 )
 
 test(
@@ -87,10 +88,10 @@ test(
     """,
     "nVowels",
     "aeeoouuiaobbbbboisoso",
-    initNode(
-        "nVowels",
-        {"val": "aeeoouuiao"}
-    )
+    ~~ {
+        "kind": "nVowels",
+        "val": "aeeoouuiao"
+    }
 )
 
 test(
@@ -103,17 +104,24 @@ test(
     """,
     "nFuncdef",
     "function multiply(argone, argtwo, argthree);",
-    initNode(
-        "nFuncdef",
-        {
-            "args": ~ @[
-                initNode("nArg", {"id": "argone"}),
-                initNode("nArg", {"id": "argtwo"}),
-                initNode("nArg", {"id": "argthree"})
-            ],
-            "id": ~"multiply",
-        }
-    )
+    ~~ {
+        "kind": "nFuncdef",
+        "id": "multiply",
+        "args": [
+            {
+                "kind": "nArg",
+                "id": "argone"
+            },
+            {
+                "kind": "nArg",
+                "id": "argtwo"
+            },
+            {
+                "kind": "nArg",
+                "id": "argthree"
+            }
+        ]
+    }
 )
 
 test(
@@ -127,10 +135,10 @@ test(
     """,
     "annode",
     "qwnjgib2723t99 12h8t9",
-    initNode(
-        "annode",
-        {"val": "qwnjgib2723t99"}
-    )
+    ~~ {
+        "kind": "annode",
+        "val": "qwnjgib2723t99"
+    }
 )
 
 #[
@@ -149,10 +157,10 @@ test(
     """,
     "nFruit",
     "banana",
-    initNode(
-        "nBanana",
-        {"val": "banana"}
-    )
+    ~~ {
+        "kind": "nBanana",
+        "val": "banana"
+    }
 )
 
 test(
@@ -164,14 +172,18 @@ test(
     """,
     "funcDecl",
     "func pow(a, b);",
-    initNode(
-        "funcDecl",
-        {
-            "id": ~ "pow",
-            "args": ~ @[
-                initNode("arg", {"id": "a"}),
-                initNode("arg", {"id": "b"})
-            ]
-        }
-    )
+    ~~ {
+        "kind": "funcDecl",
+        "id": "pow",
+        "args": [
+            {
+                "kind": "arg",
+                "id": "a"
+            },
+            {
+                "kind": "arg",
+                "id": "b"
+            }
+        ]
+    }
 )

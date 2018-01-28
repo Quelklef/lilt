@@ -114,8 +114,62 @@ proc initNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
     let properties = @props.mapIt( (it[0], Property(kind: ltList, list: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
-#[ TODO
-It would be really nice to have a Json-%*-esque macro or other
-API to be able to easily write ASTs without having to deal with
-a million unreadable calls to initNode and initProperty
-]#
+#~# Pretty AST Creation Syntax #~#
+
+proc toAst*(jast: JsonNode): Node =
+    case jast.kind:
+    of JString, JInt, JFloat, JBool, JNull, JArray:
+        assert false
+    of JObject:
+        let fields = jast.fields
+        var resultProps = newTable[string, Property]()
+        result = initNode(fields["kind"].str, resultProps)
+
+        for field, val in fields:
+            if field == "kind": continue
+
+            case val.kind:
+            of JString:
+                resultProps[field] = initProperty(val.str)
+            of JInt:
+                resultProps[field] = initProperty($val.num)
+            of JFloat:
+                resultProps[field] = initProperty($val.fnum)
+            of JBool:
+                resultProps[field] = initProperty($val.bval)
+            of JNull:
+                resultProps[field] = initProperty("null")
+            of JObject:
+                resultProps[field] = initProperty(toAst(val))
+            of JArray:
+                resultProps[field] = initProperty(val.elems.mapIt(it.toAst))
+
+
+template `~~`*(x: untyped): untyped =
+  toAst(%* x)
+
+
+when isMainModule:
+    let test = ~~ {
+        "kind": "alligator",
+        "teeth": [
+            {
+                "kind": "tooth",
+                "strength": nil,
+                "broken": true
+            },
+            {
+                "kind": "tooth",
+                "strength": 11.8,
+                "broken": false
+            },
+            {
+                "kind": "tooth",
+                "strength": 30,
+                "broken": false
+            }
+        ],
+        "color": "green"
+    }
+
+    echo $$test
