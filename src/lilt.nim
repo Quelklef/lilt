@@ -45,7 +45,7 @@ proc makeParser*(code: string): proc(text: string): inner_ast.Node =
                 .returnType.toLiltType
         ))
 
-        if ruleVal.head != text.len:
+        if ruleVal.head != text.len - 1:  # TODO should be [text.len] or [text.len - 1]?
             raise newException(RuleError, "Unconsumed text left over. (Head ended at $1, text.len=$2)" % [$ruleVal.head, $text.len])
 
         return ruleVal.node

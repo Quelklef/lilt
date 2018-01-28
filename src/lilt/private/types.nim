@@ -29,6 +29,9 @@ method canInfer(node: Node, known: Known): bool {.base.} =
     raise new(BaseError)
 
 #~# Independently typed nodes #~#
+# (Meaning that their return type may be inferred regardless of
+# whether or not we know the return types of any other nodes in
+# the AST.)
 
 method canInfer(prop: Property, known: Known): bool =
     return true
@@ -63,15 +66,7 @@ method inferReturnType(lit: Literal, known: Known) =
 method canInfer(se: Sequence, known: Known): bool =
     return true
 method inferReturnType(se: Sequence, known: Known) =
-    # Note: verify.nim:verify will already have been
-    # run on the AST before this is called, so no need
-    # to ensure that doesn't contain Extension node and 
-    # Property node
-    if se.scoped.anyIt(it of Adjoinment or it of Property or it of Extension):
-        # Contains statements, so returns nothing
-        se.returnType = rrtNone
-    else:
-        se.returnType = rrtText
+    se.returnType = rrtText
 
 method canInfer(def: Definition, known: Known): bool =
     return true

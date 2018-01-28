@@ -10,3 +10,7 @@ nimcache/
 
 # Ignore special test.nim used by me because there's no CL Nim REPL
 test.nim
+
+pyvenv/
+
+docs/_*

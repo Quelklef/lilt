@@ -9,10 +9,12 @@ import tables
 import strutils
 import sequtils
 
-import misc
-import base
+import private/misc
+import private/base
 
 import json
+
+export base
 
 type
     # Type of an property on a node

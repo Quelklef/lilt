@@ -72,7 +72,7 @@ proc toProperty(rv: RuleVal): inner_ast.Property =
     of rrtNone:
         raise newException(ValueError, "RuleValue but not be of kind rrtNone")
 
-proc hcr(rv: RuleVal): (int, LambdaState) =
+proc hls(rv: RuleVal): (int, LambdaState) =
     # No semantic meaning, exists only to make code terser
     return (rv.head, rv.lambdaState)
 
@@ -254,20 +254,15 @@ method translate(se: Sequence, context: LiltContext): Rule =
 
             for node in se.contents:
                 let returnVal = translate(node, context)(head, text, lambdaState)
-                (head, lambdaState) = returnVal.hcr
-                returnText &= returnVal.text
+                (head, lambdaState) = returnVal.hls
+
+                case returnVal.kind:
+                of rrtText:
+                    returnText &= returnVal.text
+                else:
+                    discard
 
             return (head, returnText, lambdaState)
-
-    of rrtNone:
-        rule = proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
-            var head = head
-            var lambdaState = lambdaState
-
-            for node in se.contents:
-                (head, lambdaState) = translate(node, context)(head, text, lambdaState).hcr
-
-            return (head, lambdaState)
 
     else:
         assert false
@@ -317,7 +312,7 @@ method translate(o: Optional, context: LiltContext): Rule =
 
     if o.inner.returnType == rrtNone:
         rule = proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
-            return innerRule(head, text, lambdaState).hcr
+            return innerRule(head, text, lambdaState).hls
 
     else:
         rule = proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
@@ -353,7 +348,7 @@ method translate(op: OnePlus, context: LiltContext): Rule =
             except RuleError:
                 break
 
-            (head, lambdaState) = retVal.hcr
+            (head, lambdaState) = retVal.hls
 
             case op.returnType:
             of rrtText:
@@ -402,7 +397,7 @@ method translate(p: outer_ast.Property, context: LiltContext): Rule =
         var head = head
 
         let returnVal = innerRule(head, text, lambdaState)
-        (head, lambdaState) = returnVal.hcr
+        (head, lambdaState) = returnVal.hls
         lambdaState.node.properties[p.propName] = returnVal.toProperty
 
         return (head, lambdaState)
