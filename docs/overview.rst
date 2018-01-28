@@ -33,6 +33,6 @@ The *rule* is the basic idea of Lilt. Rules act on *text* and do several things:
 Legislators
 -----------
 
-As most people know, legislators make the rules. This rule applies in Lilt, too.
+As most people know, `legislators make the rules <https://en.wikipedia.org/wiki/Legislator>`_. This rule applies in Lilt, too.
 
-A *legislator* takes a bit of code and returns a rule based on it. 
+A *legislator* takes a bit of code and returns a rule based on it.
