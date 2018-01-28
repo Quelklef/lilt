@@ -3,6 +3,9 @@
 !*/
 !*.*
 
+# Unignore makefiles
+!Makefile
+
 # Ignore exes (Nim filed compiled on Windows) and nim temp files
 *.exe
 nimcache/
