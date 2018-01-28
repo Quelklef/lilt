@@ -1,6 +1,8 @@
 
 # Package
 
+# Thanks to https://github.com/nim-lang/nimble/blob/master/nimble.nimble#L4
+
 import ospaths
 template packageDir: string = instantiationInfo(fullPaths=true).filename.parentDir
 

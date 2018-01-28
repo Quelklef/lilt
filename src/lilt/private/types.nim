@@ -106,18 +106,17 @@ method inferReturnType(opt: Optional, known: Known): RuleReturnType =
 
 method canInfer(re: Reference, known: Known): bool =
     return re.ancestors
-        .findIt(it of Program)
-        .descendants
-        .findIt(it of Definition and it.Definition.id == re.id)
-        .Definition.body.Lambda in known
+        .findOf(Program)
+        .descendants.filterOf(Definition)
+        .findIt(it.id == re.id)
+        .body.Lambda in known
 method inferReturnType(re: Reference, known: Known): RuleReturnType =
     # TODO Will not nicely fail if referencing an undefined rule
     # Ensure that referencing a defined function
     let definitions = re.ancestors
-        .findIt(it of Program)
+        .findOf(Program)
         .descendants
-        .filterIt(it of Definition)
-        .mapIt(it.Definition)
+        .filterOf(Definition)
 
     if re.id notin definitions.mapIt(it.id):
         raise newException(TypeError, "No rule '$1'." % re.id)

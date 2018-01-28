@@ -55,13 +55,12 @@ proc allSame*[T](s: seq[T]): bool =
             return false
     return true
 
-# TODO filterOf/findOf don't seem to be working
-template filterOf(sequence, kind: untyped): untyped =
+template filterOf*(sequence, kind: untyped): untyped =
     ## Filter a sequence to find all values of a specified type
     ## Additionally, map those values to that type
     sequence.filterIt(it of kind).mapIt(kind(it))
 
-template findOf(sequence, kind: untyped): untyped =
+template findOf*(sequence, kind: untyped): untyped =
     ## Find the first item in a sequene of a specified type
     ## Additionally, convert that item to said type
     kind(sequence.findIt(it of kind))

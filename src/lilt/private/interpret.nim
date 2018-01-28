@@ -457,9 +457,9 @@ proc interpret*(text: string, ruleName: string, input: string): RuleVal =
     
     let ruleVal = rule(0, input, initLambdaState(
         ast.Program
-            .definitions
-            .findIt(it.Definition.id == ruleName)
-            .Definition.body.Lambda
+            .definitions.mapIt(it.Definition)
+            .findIt(it.id == ruleName)
+            .body.Lambda
             .returnType.toLiltType
     ))
 
