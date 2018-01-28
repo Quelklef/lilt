@@ -64,3 +64,8 @@ template findOf*(sequence, kind: untyped): untyped =
     ## Find the first item in a sequene of a specified type
     ## Additionally, convert that item to said type
     kind(sequence.findIt(it of kind))
+
+proc toString*(charset: set[char]): string =
+    result = ""
+    for c in charset:
+        result &= c

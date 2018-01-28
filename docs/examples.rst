@@ -8,7 +8,6 @@ So, you want to see examples of Lilt! Well, you're in luck.
 Parsing a Number
 ----------------
 
-
 Parsing a number, returning a node::
 
     digit: <1234567890>
@@ -26,7 +25,7 @@ Results::
     on "45." -> Gives an error
 
     on ".500" -> {
-        whiles: ""
+        wholes: ""
         decimals: "500"
     }
 

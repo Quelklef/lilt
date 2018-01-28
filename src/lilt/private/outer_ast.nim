@@ -179,6 +179,9 @@ type Set* = ref object of Node
 proc newSet*(charset: string): Set =
     return Set(charset: charset)
 
+proc newSet*(charset: set[char]): Set =
+    return newSet(charset.toString)
+
 method textProps*(s: Set): auto =
     return {"characters": s.charset}.toTable
 

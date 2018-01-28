@@ -16,7 +16,7 @@ Parsing
 
 The :code:`Node` type is from the ast import below.
 
-:code:`makeParser` accepts a lilt specification and generates a parser for it. This parser is returned as the form of a proc mapping :code:`text` to a :code:`Node` (an AST).
+:code:`makeParser` accepts a Lilt specification and generates a parser for it. This parser is returned as the form of a proc mapping :code:`text` to a :code:`Node` (an AST).
 
 Ast
 ---

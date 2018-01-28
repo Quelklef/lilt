@@ -13,7 +13,7 @@ program is mapped to a Nim procedure on a file.
 ]#
 
 import tables
-import strutils as su
+import strutils
 import sequtils
 
 import outer_ast
@@ -182,10 +182,36 @@ type WrongTypeError = object of Exception
 method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
+let emptyContext = newTable[string, Rule]()
+
+template toRule[T](s: set[T]): Rule =
+    translate(newSet(s), emptyContext)
+
+let builtins = {
+    "whitespace": strutils.Whitespace.toRule,
+    "_": translate(
+        newOptional(newOnePlus(
+            newSet(strutils.Whitespace)
+        )),
+        emptyContext
+    ),
+    "any": Rule(proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
+        return (head + 1, lambdaState)
+    ),
+    "lower": {'a' .. 'z'}.toRule,
+    "upper": {'A' .. 'Z'}.toRule,
+    "alpha": strutils.Letters.toRule,
+    "digit": strutils.Digits.toRule,
+    "alphanum": toRule(strutils.Letters + strutils.Digits),
+}.newTable
+
 method translate(re: Reference, context: LiltContext): Rule =
     proc rule(head: int, text: string, lambdaState: LambdaState): RuleVal =
-        # Creating new `lambdaState`s is handled in the translate(Lambda) code
-        return context[re.id](head, text, lambdaState)
+        # Creating new lambda states is handled in the translate(Lambda) code
+        if re.id in context:
+            return context[re.id](head, text, lambdaState)
+        else:
+            return builtins[re.id](head, text, lambdaState)
 
     return debugWrap(rule, re)
 

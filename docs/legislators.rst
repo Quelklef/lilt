@@ -2,7 +2,7 @@
 Legislators
 ===========
 
-As most people know, `legislators make the rules <https://en.wikipedia.org/wiki/Legislator>`_. This rule applies in Lilt, too.
+As most people know, `legislators make the rules <https://en.wikipedia.org/wiki/Legislator>`_. This applies in Lilt, too.
 
 A legislator takes a bit of code and returns a rule based on it.
 
@@ -50,7 +50,7 @@ For instance, :code:`"firstname" | "lastname"` matches "firstname" and "lastname
 
 Choices will only fail if the given text matches none of the contained rules.
 
-Ambiguous choices are allowed. For instance, :code:`"abc" | "abc"` is ambiguous -- does the text match the first rule, or the second? To solve this, the choice defers to the first matching rule.
+Ambiguous choices are allowed. For instance, :code:`"abc" | "abc"` is ambiguous -- does the text "abc" match the first rule, or the second? To solve this, the choice defers to the first matching rule.
 
 
 Optional
@@ -92,17 +92,17 @@ Zeroplus legislators are like oneplus legislators, but match the inner rule zero
 
 Zeroplus' begin with a :code:`*` and are followed by a rule.
 
-`*rule` is actually expanded to :code:`?+rule`; zeroplus legislators are macros.
+:code:`*rule` is actually expanded to :code:`?+rule`; zeroplus legislators are macros.
 
 
 Lambdas & States
 ----------------
 
-Lambda legislators contain only sequences or choices and posses a mutable state.
+Lambda legislators contain a rule and posses a mutable state.
 
 They begin and end with :code:`{` and :code:`}`, containing the sequence/choice in between.
 
-If the lambda doesn't contain any adjoinments, properties, or extensions, it will return the value of the sequence or choice.
+If the lambda doesn't contain any adjoinments, properties, or extensions, it will return the value of the contained rule.
 
 Otherwise, the lambda will return the state, which can be text, a node, or a list of nodes, after the inner rule has run. As it runs, the state will be mutated.
 
