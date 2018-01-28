@@ -23,15 +23,15 @@ test(
   newProgram(@[
     newDefinition(
       "char",
-      newLambda(newSequence(@[
+      newLambda(
         newOptional(newOnePlus(newSet("abcdefg"))).Node
-      ]))
+      )
     ).Node,
     newDefinition(
       "string",
-      newLambda(newSequence(@[
+      newLambda(
         newOnePlus(newReference("char")).Node
-      ]))
+      )
     )
   ])
 )
@@ -102,9 +102,9 @@ test(
   newProgram(@[
     newDefinition(
       "lambTest",
-      newLambda(newSequence(@[
-        newLambda(newSequence(@[ newSet("a").Node ])).Node
-      ]))
+      newLambda(
+        newLambda(newSet("a"))
+      )
     ).Node
   ])
 )

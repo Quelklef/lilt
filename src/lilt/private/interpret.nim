@@ -200,7 +200,18 @@ method translate(lamb: Lambda, context: LiltContext): Rule =
         # nor should we be checking if it's top-level
         # Somehow, all of this needs to be handled with typing (or a replacement)
 
-        if lamb.body of Sequence:
+        if lamb.body of Choice:
+            case lamb.returnType:
+            of rrtText:
+                return (returnVal.head, returnVal.text, lambdaState)
+            of rrtNode:
+                return (returnVal.head, returnVal.node, lambdaState)
+            of rrtList:
+                return (returnVal.head, returnVal.list, lambdaState)
+            of rrtNone:
+                assert false
+
+        else:
             if lamb.returnType == rrtNode:
                 # TODO either:
                 # 1. Extend lambdas to be able to return node from anywhere
@@ -224,20 +235,6 @@ method translate(lamb: Lambda, context: LiltContext): Rule =
                 return (returnVal.head, returnVal.lambdaState.list, lambdaState)
             of rrtNone:
                 assert false
-
-        elif lamb.body of Choice:
-            case lamb.returnType:
-            of rrtText:
-                return (returnVal.head, returnVal.text, lambdaState)
-            of rrtNode:
-                return (returnVal.head, returnVal.node, lambdaState)
-            of rrtList:
-                return (returnVal.head, returnVal.list, lambdaState)
-            of rrtNone:
-                assert false
-
-        else:
-            assert false
 
     return debugWrap(rule, lamb)
 

@@ -330,19 +330,19 @@ proc parseLambda(head: int, code: string): ParserValue {.debug.} =
     return (head, outer_ast.newLambda(innerNode))
 
 proc parseExpression(head: int, code: string): ParserValue {.debug.} =
-    const options: seq[Parser] = @[
-        Parser(parseProperty), # Must go before parseReference because starts with an identifier
-        Parser(parseReference),
-        Parser(parseExtension),
-        Parser(parseAdjoinment),
-        Parser(parseLiteral),
-        Parser(parseSet),
-        Parser(parseOptional),
-        Parser(parseOnePlus),
-        Parser(parseZeroPlus),
-        Parser(parseGuard),
-        Parser(parseBrackets),
-        Parser(parseLambda)
+    const options = [
+        parseProperty, # Must go before parseReference because starts with an identifier
+        parseReference,
+        parseExtension,
+        parseAdjoinment,
+        parseLiteral,
+        parseSet,
+        parseOptional,
+        parseOnePlus,
+        parseZeroPlus,
+        parseGuard,
+        parseBrackets,
+        parseLambda
     ]
 
     for option in options:
@@ -398,15 +398,16 @@ proc parseSequence(head: int, code: string): ParserValue {.debug.} =
         head = head.consumeDotspace(code)
         innerNodes.add(innerNode)
 
-    if innerNodes.len < 1:
-        raise newException(ParsingError, "Expected at least one simple expression.")
+    if innerNodes.len < 2:
+        raise newException(ParsingError, "Expected at least two simple expressions.")
 
     return (head, outer_ast.newSequence(innerNodes))
 
 proc parseBody(head: int, code: string): ParserValue {.debug.} =
-    const options = @[
+    const options = [
         parseChoice,
         parseSequence,
+        parseExpression,
     ]
 
     for option in options:
