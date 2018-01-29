@@ -119,7 +119,7 @@ proc newLambda*(body: Node, returnNodeKind: string): Lambda =
     return la
 
 proc newLambda*(body: Node): Lambda =
-    return newLambda(body, nil)
+    return newLambda(body, "<anonymous>")
 
 method nodeProps*(la: Lambda): auto =
     return {"body": la.body}.toTable
@@ -285,14 +285,15 @@ method typeName(p: Property): string = "Property"
 #~#
 
 proc `$`*(node: Node): string =
-    var props = {"kind": node.typeName}.toTable
+    result = "{kind: $1, " % node.typeName
+    result &= "rrt: $1, " % $node.returnType
     for key, val in node.textProps:
-        props[key] = val
+        result &= "$1: $2, " % [key, val]
     for key, val in node.nodeProps:
-        props[key] = $val
+        result &= "$1: $2, " % [key, $val]
     for key, val in node.listProps:
-        props[key] = $val
-    return $props
+        result &= "$1: $2" % [key, $val]
+    result &= " }"
 
 proc `$$`*(node: Node): string
 proc `$$`(list: seq[Node]): string =
