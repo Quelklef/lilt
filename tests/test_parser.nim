@@ -83,22 +83,22 @@ test(
   ])
 )
 
-#[ test(
-  "Adjoinment & Escapes",
+test(
+  "Adjoinment",
   """
-  handleString: "\"" $*char "\""
+  handleString: "'" $*char "'"
   """,
   newProgram(@[
     newDefinition(
       "handleString",
       newLambda(newSequence(@[
-        newLiteral("\""),
+        newLiteral("'"),
         newAdjoinment(newOptional(newOnePlus(newReference("char")))),
-        newLiteral("\"")
+        newLiteral("'")
       ]))
     ).Node
   ])
-) ]#
+)
 
 #[ test(
   "Comments 1",

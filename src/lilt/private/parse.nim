@@ -71,7 +71,7 @@ let liltParserAst = outer_ast.newProgram(@[
     , "zeroplus"    := ~[ ^"*", "inner" .= @"expression" ]
     , "guard"       := ~[ ^"!", "inner" .= @"expression" ]
 
-    , "adjoinment"  := ~[ ^"$", "inner" .= @"adjoinment" ]
+    , "adjoinment"  := ~[ ^"$", "inner" .= @"expression" ]
     , "property"    := ~[ "propName" .= @"identifier", ^"=", "body" .= @"expression" ]
     , "extension"   := ~[ ^"&", "inner" .= @"expression" ]
 

@@ -22,6 +22,6 @@ template `*`*(inner: Node): Node = newOptional(newOneplus(inner))
 template `!`*(inner: Node): Node = newGuard(inner)
 
 # Not `$` as to not conflict with `$` conventions
-template `.$`*(inner: Node): Node = newAdjoinment(inner)
+template `$:`*(inner: Node): Node = newAdjoinment(inner)
 template `.=`*(id: string, inner: Node): Node = newProperty(id, inner)
 template `&`*(inner: Node): Node = newExtension(inner)
