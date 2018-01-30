@@ -3,9 +3,9 @@
 
 AST definiton for parsed Lilt code.
 
-Each kind of node on the AST has its own Nim type.
+Each kind of Node on the AST has its own Nim type.
 
-All properties of subtypes of Node should be of type
+All properties of subtypes of ONode should be of type
 Node, string, or seq[Node]
 and should thus be returned in textProps,
 nodeProps, or listProps.
@@ -19,51 +19,31 @@ import tables
 import misc
 import base
 
-type RuleReturnType* = enum
-    ## Rules may return any of a LiltType,
-    ## or it may return nothing.
-    # Default is rrtNone
-    rrtNone
-
-    rrtText
-    rrtNode
-    rrtList
-
-proc toLiltType*(rrt: RuleReturnType): LiltType =
-    case rrt:
-    of rrtNone:
-        raise newException(ValueError, "Value cannot be rrtNone.")
-    of rrtText:
-        return ltText
-    of rrtNode:
-        return ltNode
-    of rrtList:
-        return ltList
-
-type Node* = ref object of RootObj
+# We call this ONode just to differentiate it from base.Node
+type ONode* = ref object of RootObj
     returnType*: RuleReturnType
-    parent*: Node
+    parent*: ONode
 
 
-method typeName*(n: Node): string {.base.} =
-    # Returns the name of the type of the node
+method typeName*(n: ONode): string {.base.} =
+    # Returns the name of the type of the ONode
     raise new(BaseError)
 
-method textProps*(n: Node): Table[string, string] {.base.} =
+method textProps*(n: ONode): Table[string, string] {.base.} =
     return initTable[string, string]()
 
-method nodeProps*(n: Node): Table[string, Node] {.base.} =
-    return initTable[string, Node]()
+method nodeProps*(n: ONode): Table[string, ONode] {.base.} =
+    return initTable[string, ONode]()
 
-method listProps*(n: Node): Table[string, seq[Node]] {.base.} =
-    return initTable[string, seq[Node]]()
+method listProps*(n: ONode): Table[string, seq[ONode]] {.base.} =
+    return initTable[string, seq[ONode]]()
 
 # Program
 
-type Program* = ref object of Node
-    definitions*: seq[Node]
+type Program* = ref object of ONode
+    definitions*: seq[ONode]
 
-proc newProgram*(dfns: seq[Node]): Program =
+proc newProgram*(dfns: seq[ONode]): Program =
     let p = Program(definitions: dfns)
     for dfn in dfns:
         dfn.parent = p
@@ -76,7 +56,7 @@ method typeName(p: Program): string = "Program"
 
 # Reference
 
-type Reference* = ref object of Node
+type Reference* = ref object of ONode
     id*: string
 
 proc newReference*(id: string): Reference =
@@ -89,11 +69,11 @@ method typeName(r: Reference): string = "Reference"
 
 # Definition
 
-type Definition* = ref object of Node
+type Definition* = ref object of ONode
     id*: string
-    body*: Node
+    body*: ONode
 
-proc newDefinition*(id: string, body: Node): Definition =
+proc newDefinition*(id: string, body: ONode): Definition =
     let d = Definition(id: id, body: body)
     body.parent = d
     return d
@@ -108,18 +88,18 @@ method typeName(d: Definition): string = "Definition"
 
 # Lambda
 
-type Lambda* = ref object of Node
-    body*: Node  # Choice or sequence
-    # If returning a node, we need to know the kind of the node
+type Lambda* = ref object of ONode
+    body*: ONode  # Choice or sequence
+    # If returning a ONode, we need to know the kind of the ONode
     # it's returning.
     returnNodeKind*: string
 
-proc newLambda*(body: Node, returnNodeKind: string): Lambda =
+proc newLambda*(body: ONode, returnNodeKind: string): Lambda =
     let la = Lambda(body: body, returnNodeKind: returnNodeKind)
     body.parent = la
     return la
 
-proc newLambda*(body: Node): Lambda =
+proc newLambda*(body: ONode): Lambda =
     return newLambda(body, "<anonymous>")
 
 method nodeProps*(la: Lambda): auto =
@@ -129,13 +109,13 @@ method typeName(l: Lambda): string = "Lambda"
 
 # Sequence
 
-type Sequence* = ref object of Node
-    contents*: seq[Node]
+type Sequence* = ref object of ONode
+    contents*: seq[ONode]
 
-proc newSequence*(cts: seq[Node]): Sequence =
+proc newSequence*(cts: seq[ONode]): Sequence =
     let s = Sequence(contents: cts)
-    for node in s.contents:
-        node.parent = s
+    for ONode in s.contents:
+        ONode.parent = s
     return s
 
 method listProps*(s: Sequence): auto =
@@ -145,13 +125,13 @@ method typeName(s: Sequence): string = "Sequence"
 
 # Choice
 
-type Choice* = ref object of Node
-    contents*: seq[Node]
+type Choice* = ref object of ONode
+    contents*: seq[ONode]
 
-proc newChoice*(cts: seq[Node]): Choice =
+proc newChoice*(cts: seq[ONode]): Choice =
     let c = Choice(contents: cts)
-    for node in cts:
-        node.parent = c
+    for ONode in cts:
+        ONode.parent = c
     return c
 
 method listProps*(c: Choice): auto =
@@ -161,7 +141,7 @@ method typeName(c: Choice): string = "Choice"
 
 # Literal
 
-type Literal* = ref object of Node
+type Literal* = ref object of ONode
     text*: string
 
 proc newLiteral*(text: string): Literal =
@@ -174,7 +154,7 @@ method typeName(li: Literal): string = "Literal"
 
 # Set
 
-type Set* = ref object of Node
+type Set* = ref object of ONode
     charset*: string
 
 proc newSet*(charset: string): Set =
@@ -190,10 +170,10 @@ method typeName(s: Set): string = "Set"
 
 # Optional
 
-type Optional* = ref object of Node
-    inner*: Node
+type Optional* = ref object of ONode
+    inner*: ONode
 
-proc newOptional*(inner: Node): Optional =
+proc newOptional*(inner: ONode): Optional =
     let o = Optional(inner: inner)
     inner.parent = o
     return o
@@ -205,10 +185,10 @@ method typeName(o: Optional): string = "Optional"
 
 # OnePlus
 
-type OnePlus* = ref object of Node
-    inner*: Node
+type OnePlus* = ref object of ONode
+    inner*: ONode
 
-proc newOnePlus*(inner: Node): OnePlus =
+proc newOnePlus*(inner: ONode): OnePlus =
     let op = OnePlus(inner: inner)
     inner.parent = op
     return op
@@ -220,10 +200,10 @@ method typeName(op: OnePlus): string = "OnePlus"
 
 # Guard
 
-type Guard* = ref object of Node
-    inner*: Node
+type Guard* = ref object of ONode
+    inner*: ONode
 
-proc newGuard*(inner: Node): Guard =
+proc newGuard*(inner: ONode): Guard =
     let g = Guard(inner: inner)
     inner.parent = g
     return g
@@ -235,10 +215,10 @@ method typeName(g: Guard): string = "Guard"
 
 # Adjoinment
 
-type Adjoinment* = ref object of Node
-    inner*: Node
+type Adjoinment* = ref object of ONode
+    inner*: ONode
 
-proc newAdjoinment*(inner: Node): Adjoinment =
+proc newAdjoinment*(inner: ONode): Adjoinment =
     let a = Adjoinment(inner: inner)
     inner.parent = a
     return a
@@ -250,10 +230,10 @@ method typeName(adj: Adjoinment): string = "Adjoinment"
 
 # Extension
 
-type Extension* = ref object of Node
-    inner*: Node
+type Extension* = ref object of ONode
+    inner*: ONode
 
-proc newExtension*(inner: Node): Extension =
+proc newExtension*(inner: ONode): Extension =
     let e = Extension(inner: inner)
     inner.parent = e
     return e
@@ -265,11 +245,11 @@ method typeName(ext: Extension): string = "Extension"
 
 # Property
 
-type Property* = ref object of Node
+type Property* = ref object of ONode
     propName*: string
-    inner*: Node
+    inner*: ONode
 
-proc newProperty*(name: string, inner: Node): Property =
+proc newProperty*(name: string, inner: ONode): Property =
     let p = Property(propName: name, inner: inner)
     inner.parent = p
     return p
@@ -285,46 +265,46 @@ method typeName(p: Property): string = "Property"
 
 #~#
 
-proc `$`*(node: Node): string =
-    result = "{kind: $1, " % node.typeName
-    result &= "rrt: $1, " % $node.returnType
-    for key, val in node.textProps:
+proc `$`*(ONode: ONode): string =
+    result = "{kind: $1, " % ONode.typeName
+    result &= "rrt: $1, " % $ONode.returnType
+    for key, val in ONode.textProps:
         result &= "$1: $2, " % [key, val]
-    for key, val in node.nodeProps:
+    for key, val in ONode.nodeProps:
         result &= "$1: $2, " % [key, $val]
-    for key, val in node.listProps:
+    for key, val in ONode.listProps:
         result &= "$1: $2" % [key, $val]
     result &= "}"
 
-proc `$$`*(node: Node): string
-proc `$$`(list: seq[Node]): string =
+proc `$$`*(ONode: ONode): string
+proc `$$`(list: seq[ONode]): string =
     result = "@[\n"
-    for node in list:
-        result &= >$ $$node & "\n"
+    for ONode in list:
+        result &= >$ $$ONode & "\n"
     result &= "]"
 
-proc `$$`*(node: Node): string =
-    result = "{ kind: $1" % node.typeName
-    result &= "\nrrt: $1" % $node.returnType
-    for key, val in node.textProps:
+proc `$$`*(ONode: ONode): string =
+    result = "{ kind: $1" % ONode.typeName
+    result &= "\nrrt: $1" % $ONode.returnType
+    for key, val in ONode.textProps:
         result &= "\n$1: $2" % [key, val]
-    for key, val in node.nodeProps:
+    for key, val in ONode.nodeProps:
         result &= "\n$1:\n$2" % [key, >$ $$val]
-    for key, val in node.listProps:
+    for key, val in ONode.listProps:
         result &= "\n$1: $2" % [key, $$val]
     result &= " }"
 
-proc children*(n: Node): seq[Node] =
+proc children*(n: ONode): seq[ONode] =
     result = @[]
-    for node in n.nodeProps.values:
-        result.add(node)
+    for ONode in n.nodeProps.values:
+        result.add(ONode)
     for list in n.listProps.values:
         result.extend(list)
 
-proc isBranch*(n: Node): bool =
+proc isBranch*(n: ONode): bool =
     return n.children.len > 0
 
-proc isLeaf*(n: Node): bool =
+proc isLeaf*(n: ONode): bool =
     return not n.isBranch
 
 # TODO: This whole `equiv` nonsense is smelly
@@ -339,7 +319,7 @@ proc sameKeys[K, V](t1: Table[K, V], t2: Table[K, V]): bool =
             return false
     return true
 
-proc equiv*(node: Node, other: Node): bool
+proc equiv*(ONode: ONode, other: ONode): bool
 
 proc equiv[K, V](t1: Table[K, V], t2: Table[K, V]): bool =
     if not sameKeys(t1, t2):
@@ -351,7 +331,7 @@ proc equiv[K, V](t1: Table[K, V], t2: Table[K, V]): bool =
 
     return true
 
-proc equiv(s1: seq[Node], s2: seq[Node]): bool =
+proc equiv(s1: seq[ONode], s2: seq[ONode]): bool =
     if s1.len != s2.len:
         return false
 
@@ -361,27 +341,27 @@ proc equiv(s1: seq[Node], s2: seq[Node]): bool =
 
     return true
 
-proc equiv*(node: Node, other: Node): bool =
+proc equiv*(ONode: ONode, other: ONode): bool =
     ## Not `==` because `==` is for identity.
-    ## NOTE: This does not verifiy that the two nodes' have matching
+    ## NOTE: This does not verifiy that the two ONodes' have matching
     ## return type. This is intentional.
-    return node of other.type and other of node.type and  # Ensure of same type
-        node.textProps == other.textProps and
-        equiv[string, Node](node.nodeProps, other.nodeProps) and
-        equiv[string, seq[Node]](node.listProps, other.listProps)
+    return ONode of other.type and other of ONode.type and  # Ensure of same type
+        ONode.textProps == other.textProps and
+        equiv[string, ONode](ONode.nodeProps, other.nodeProps) and
+        equiv[string, seq[ONode]](ONode.listProps, other.listProps)
 
-proc descendants*(node: Node): seq[Node] =
-    ## Recursively iterates through all descendants of given node.
-    result = node.children
-    var head = 0  # Index of current node we're unpacking
+proc descendants*(ONode: ONode): seq[ONode] =
+    ## Recursively iterates through all descendants of given ONode.
+    result = ONode.children
+    var head = 0  # Index of current ONode we're unpacking
 
     while head < result.len:
-        let current_node = result[head]
-        if current_node.isBranch:
-            result.extend(current_node.children)
+        let current_ONode = result[head]
+        if current_ONode.isBranch:
+            result.extend(current_ONode.children)
         inc(head)
 
-proc layers*(node: Node): seq[seq[Node]] =
+proc layers*(ONode: ONode): seq[seq[ONode]] =
     ## Returns a 2d list in which each sublist is one more level
     ## deep than the previous.
     ## For instance, [PROGRAM [DEFINITION [SEQUENCE
@@ -398,35 +378,35 @@ proc layers*(node: Node): seq[seq[Node]] =
     ##     @[LITERAL 'a'],
     ##     @[LITERAL 'b']
     ## ]
-    result = @[@[node]]
+    result = @[@[ONode]]
     while true:
         let prevLayer = result[result.len - 1]
-        var newLayer: seq[Node] = @[]
+        var newLayer: seq[ONode] = @[]
 
-        for node in prevLayer:
-            newLayer.extend(node.children)
+        for ONode in prevLayer:
+            newLayer.extend(ONode.children)
 
         if newLayer.len == 0:
             break
         else:
             result.add(newLayer)
 
-proc ancestors*(node: Node): seq[Node] =
+proc ancestors*(ONode: ONode): seq[ONode] =
     result = @[]
-    var curNode = node.parent
-    while not curNode.isNil:
-        result.add(curNode)
-        curNode = curNode.parent
+    var curONode = ONode.parent
+    while not curONode.isNil:
+        result.add(curONode)
+        curONode = curONode.parent
 
-proc scoped*(node: Node): seq[Node] =
-    # Return all of node's descendants, except those contained
-    # inside a Lambda contained inside the given node.
-    result = node.children
-    var head = 0  # Index of current node we're unpacking
+proc scoped*(ONode: ONode): seq[ONode] =
+    # Return all of ONode's descendants, except those contained
+    # inside a Lambda contained inside the given ONode.
+    result = ONode.children
+    var head = 0  # Index of current ONode we're unpacking
 
     while head < result.len:
-        let currentNode = result[head]
-        if currentNode.isBranch and not (currentNode of Lambda):
-            result.extend(currentNode.children)
+        let currentONode = result[head]
+        if currentONode.isBranch and not (currentONode of Lambda):
+            result.extend(currentONode.children)
         inc(head)
  

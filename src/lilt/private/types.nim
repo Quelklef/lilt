@@ -11,23 +11,24 @@ All other nodes' return types have semantic meaning.
 import sets
 import macros
 import hashes
-
-import outer_ast
 import sequtils
 import strutils
 import tables
+
+import base
+import outer_ast
 import misc
 
 type TypeError* = object of Exception
 type ReferenceError* = object of Exception
 
 # TODO: Switch to hashset
-type Known = seq[Node]
+type Known = seq[ONode]
 
-method inferReturnType(node: Node, known: Known): RuleReturnType {.base.} =
+method inferReturnType(node: ONode, known: Known): RuleReturnType {.base.} =
     raise new(BaseError)
 
-method canBeInferred(node: Node, known: Known): bool {.base.} =
+method canBeInferred(node: ONode, known: Known): bool {.base.} =
     raise new(BaseError)
 
 #~# Independently typed nodes #~#
@@ -35,9 +36,9 @@ method canBeInferred(node: Node, known: Known): bool {.base.} =
 # whether or not we know the return types of any other nodes in
 # the AST.)
 
-method canBeInferred(prop: Property, known: Known): bool =
+method canBeInferred(prop: outer_ast.Property, known: Known): bool =
     return true
-method inferReturnType(prop: Property, known: Known): RuleReturnType =
+method inferReturnType(prop: outer_ast.Property, known: Known): RuleReturnType =
     return rrtNone
 
 method canBeInferred(adj: Adjoinment, known: Known): bool =
@@ -145,7 +146,7 @@ method canBeInferred(lamb: Lambda, known: Known): bool =
     let body = lamb.body
     return body of Sequence or
         body of Choice and body in known or
-        body of Adjoinment or body of Property or body of Extension or
+        body of Adjoinment or body of outer_ast.Property or body of Extension or
         body in known
 proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
     # Semantically meaningless; helper for inferReturnType
@@ -153,7 +154,7 @@ proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
         for node in lamb.scoped:
             if node of Adjoinment:
                 return rrtText
-            elif node of Property:
+            elif node of outer_ast.Property:
                 return rrtNode
             elif node of Extension:
                 return rrtList
@@ -164,7 +165,7 @@ proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
 
     elif lamb.body of Adjoinment:
         return rrtText
-    elif lamb.body of Property:
+    elif lamb.body of outer_ast.Property:
         return rrtNode
     elif lamb.body of Extension:
         return rrtList
@@ -182,9 +183,9 @@ method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
         if not isTopLevel:
             raise newException(TypeError, "Only top-level Lambdas may return nodes.")
 
-proc inferReturnTypes*(ast: Node) =
+proc inferReturnTypes*(ast: ONode) =
     var toInfer = concat(ast.layers)
-    var known: seq[Node] = @[]
+    var known: Known = @[]
 
     while toInfer.len > 0:
         var inferredCount = 0

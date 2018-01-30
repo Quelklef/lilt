@@ -5,8 +5,8 @@ import ../src/lilt/private/quick
 
 import strutils
 
-template test(testName: string, code: string, expected: Node) =
-    let parsed: Node = parseProgram(code)
+template test(testName: string, code: string, expected: ONode) =
+    let parsed = parseProgram(code)
     echo "Running test '$1'" % testName
     if not equiv(parsed, expected):
         echo "Failed; expected ast:"

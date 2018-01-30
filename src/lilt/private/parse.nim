@@ -100,11 +100,11 @@ for lamb in liltParserAst.descendants.filterOf(Lambda):
     if lamb.parent of Definition:
         lamb.returnNodeKind = lamb.parent.Definition.id
 
-let parsers: Table[string, interpret.Rule] = astToContext(liltParserAst)
+let parsers: Table[string, Rule] = astToContext(liltParserAst)
 
-proc toOuterAst(node: inner_ast.Node): outer_ast.Node
+proc toOuterAst(node: inner_ast.Node): ONode
 
-proc parseProgram*(code: string): outer_ast.Node =
+proc parseProgram*(code: string): ONode =
     return parsers["program"](0, code, initLambdaState(
         liltParserAst.Program
             .definitions.mapIt(it.Definition)
@@ -128,7 +128,7 @@ proc unescape(s: string): string =
         "\\\\": "\\",
     })
 
-proc toOuterAst(node: inner_ast.Node): outer_ast.Node =
+proc toOuterAst(node: inner_ast.Node): ONode =
     case node.kind:
     of "program":
         return newProgram(node["definitions"].list.mapIt(it.toOuterAst))
@@ -188,7 +188,7 @@ For instance, a theoretical `parseNumber` applied Like
 Paresers should not, under any circumstance, modify
 the `code` variable.
 ]#
-type ParserValue = tuple[head: int, node: outer_ast.Node]
+type ParserValue = tuple[head: int, node: ONode]
 type Parser = proc(head: int, code: string): ParserValue
 
 proc `$`(pv: ParserValue): string =
@@ -451,7 +451,7 @@ proc parseOptional(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("?", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newOptional(innerNode))
@@ -460,7 +460,7 @@ proc parseOnePlus(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("+", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newOnePlus(innerNode))
@@ -470,7 +470,7 @@ proc parseZeroPlus(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("*", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newOptional(outer_ast.newOnePlus(innerNode)))
@@ -479,7 +479,7 @@ proc parseGuard(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("!", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newGuard(innerNode))
@@ -491,7 +491,7 @@ proc parseBrackets(head: int, code: string): ParserValue {.debug.} =
     head = head.consumeString("[", code)
     head = head.consumeDeadspace(code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseBody(code)
 
     head = head.consumeDeadspace(code)
@@ -504,7 +504,7 @@ proc parseExtension(head: int, code: string): ParserValue {.debug.} =
     
     head = head.consumeString("&", code)
     
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newExtension(innerNode))
@@ -514,7 +514,7 @@ proc parseAdjoinment(head: int, code: string): ParserValue {.debug.} =
 
     head = head.consumeString("$", code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newAdjoinment(innerNode))
@@ -527,7 +527,7 @@ proc parseProperty(head: int, code: string): ParserValue {.debug.} =
 
     head = head.consumeString("=", code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newProperty(propertyName, innerNode))
@@ -538,7 +538,7 @@ proc parseLambda(head: int, code: string): ParserValue {.debug.} =
     head = head.consumeString("{", code)
     head = head.consumeDeadspace(code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseBody(code)
 
     head = head.consumeDeadspace(code)
@@ -572,7 +572,7 @@ proc parseExpression(head: int, code: string): ParserValue {.debug.} =
 proc parseChoice(head: int, code: string): ParserValue {.debug.} =
     var
         head = head
-        innerNodes: seq[outer_ast.Node] = @[]
+        innerNodes: seq[ONode] = @[]
         isFirst = true
         passedAtLeastOnePipe = false
 
@@ -590,7 +590,7 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
         else:
             isFirst = false
 
-        var innerNode: outer_ast.Node
+        var innerNode: ONode
         (head, innerNode) = head.parseExpression(code)
         innerNodes.add(innerNode)
 
@@ -598,10 +598,10 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
 
 proc parseSequence(head: int, code: string): ParserValue {.debug.} =
     var head = head
-    var innerNodes: seq[outer_ast.Node] = @[]
+    var innerNodes: seq[ONode] = @[]
     var isFirstItem = true
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     while head < code.len:
 
         let headBeforeConsumingSpace = head
@@ -652,7 +652,7 @@ proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
     head = head.consumeString(":", code)
     head = head.consumeDeadspace(code)  # Allow whitespace between ':' and body
 
-    var body: outer_ast.Node
+    var body: ONode
     (head, body) = head.parseBody(code)
 
     let lamb = newLambda(body, ide)
@@ -661,11 +661,11 @@ proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
 proc parseProgram(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
-    var definitions: seq[outer_ast.Node] = @[]
+    var definitions: seq[ONode] = @[]
 
     head = head.consumeDeadspace(code)
     while head < code.len:
-        var definition: outer_ast.Node
+        var definition: ONode
         (head, definition) = head.parseDefinition(code)
         definitions.add(definition)
         head = head.consumeDeadspace(code)
@@ -674,7 +674,7 @@ proc parseProgram(head: int, code: string): ParserValue {.debug.} =
 
 #~# Exposed API #~#
 
-proc parseProgram*(code: string): outer_ast.Node =
+proc parseProgram*(code: string): ONode =
     var (head, node) = parseProgram(0, code)
     if head < code.len:
         raise newException(ParsingError, "Extranious code at loc $1" % $head)
@@ -683,7 +683,7 @@ proc parseProgram*(code: string): outer_ast.Node =
 import macros
 macro expose(procName: untyped): typed =
     return quote do:
-        proc `procName`*(code: string): outer_ast.Node =
+        proc `procName`*(code: string): ONode =
             return `procName`(0, code).node
 
 expose(parseDefinition)

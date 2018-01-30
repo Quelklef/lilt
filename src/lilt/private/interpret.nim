@@ -21,44 +21,7 @@ import ../inner_ast
 import strfix
 import types
 import base
-from misc import findIt
-
-#[
-Most Lilt constructs are translated into Rules,
-which are functions which take code and either
-a) return an integer, the amount of code consumed,
-or b) fail. (Sound familiar?)
-
-Failing is done by raising a RuleError.
-]#
-
-type
-    RuleVal* = object of RootObj
-        head*: int
-        lambdaState*: LambdaState
-
-        case kind*: RuleReturnType:
-        of rrtText:
-            text*: string
-        of rrtNode:
-            node*: inner_ast.Node
-        of rrtList:
-            list*: seq[inner_ast.Node]
-        of rrtNone:
-            discard
-
-    #[
-    Each new reference / run of a definiton's rule makes a new LambdaState.
-    This LambdaState is what the statements in the rule modifies.
-    ]#
-    LambdaState* = object of RootObj
-        case kind*: LiltType
-        of ltText:
-            text*: string
-        of ltNode:
-            node*: inner_ast.Node
-        of ltList:
-            list*: seq[inner_ast.Node]
+import misc
 
 proc toProperty(rv: RuleVal): inner_ast.Property =
     case rv.kind:
@@ -138,14 +101,11 @@ proc initLambdaState*(kind: LiltType): LambdaState =
     else:
         assert false
 
-type Rule* = proc(head: int, text: string, lambdaState: LambdaState): RuleVal
-type RuleError* = object of Exception
-
 type LiltContext* = TableRef[string, Rule]
 
 const doDebug = false
 when not doDebug:
-    template debugWrap(rule: Rule, node: outer_ast.Node): Rule =
+    template debugWrap(rule: Rule, node: ONode): Rule =
         rule
 
 else:
@@ -162,7 +122,7 @@ else:
         dec(debugDepth)
         debugEcho(msg)
 
-    proc debugWrap(rule: Rule, node: outer_ast.Node): Rule =
+    proc debugWrap(rule: Rule, node: ONode): Rule =
         proc wrappedRule(head: int, text: string, lambdaState: LambdaState): RuleVal =
             debugPush("Attempting to match $1" % $node)
             try:
@@ -178,7 +138,7 @@ else:
 
 type WrongTypeError = object of Exception
 
-method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
+method translate(node: ONode, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
 let emptyContext = newTable[string, Rule]()
@@ -466,6 +426,6 @@ proc translate*(prog: Program): LiltContext =
         context[definition.id] = translate(definition.body, context)
     return context
 
-proc astToContext*(ast: outer_ast.Node): Table[string, Rule] =
+proc astToContext*(ast: ONode): Table[string, Rule] =
     types.inferReturnTypes(ast)
     return translate(Program(ast))[]
