@@ -19,7 +19,6 @@ import sequtils
 import outer_ast
 import ../inner_ast
 import strfix
-import parse
 import types
 import base
 from misc import findIt
@@ -467,23 +466,6 @@ proc translate*(prog: Program): LiltContext =
         context[definition.id] = translate(definition.body, context)
     return context
 
-proc interpret*(text: string, ruleName: string, input: string): RuleVal =
-    # Interprets a piece of Lilt code
-    # Note that it does not complain if the chosen rule does not
-    # consume all input text
-    let ast: outer_ast.Node = parse.parseProgram(text)
-
+proc astToContext*(ast: outer_ast.Node): Table[string, Rule] =
     types.inferReturnTypes(ast)
-
-    let definitions = translate(Program(ast))
-    let rule: Rule = definitions[ruleName]
-    
-    let ruleVal = rule(0, input, initLambdaState(
-        ast.Program
-            .definitions.mapIt(it.Definition)
-            .findIt(it.id == ruleName)
-            .body.Lambda
-            .returnType.toLiltType
-    ))
-
-    return ruleVal
+    return translate(Program(ast))[]

@@ -1,18 +1,30 @@
 
 import ../src/lilt/private/outer_ast
 import ../src/lilt/private/parse
+import ../src/lilt/private/quick
 
 import strutils
 
-template test(testName: string, code: string, expected: Program) =
-  let parsed = parseProgram(code)
+template test(testName: string, code: string, expected: Node) =
+  let parsed: Node = parseProgram(code)
   echo "Running test '$1'" % testName
-  if parsed != expected:
-    echo "Failed; got ast:"
+  if not equiv(parsed, expected):
+    echo "Failed; expected ast:"
+    echo $$expected
+    echo "but got:"
     echo $$parsed
+    echo "Failed '$1'" % testName
     assert false
   echo "Passed"
 
+
+test(
+  "Parsing Super Duper Easy",
+  "simple: \"simple\"",
+  newProgram(@[
+    "simple" := ^"simple"
+  ])
+)
 
 test(
   "Parsing 1",
@@ -37,10 +49,24 @@ test(
 )
 
 test(
+  "Sequences 1",
+  "ex: \"a\" \"b\"",
+  newProgram(@[
+    "ex" := ~[ ^"a" , ^"b" ]
+  ])
+)
+
+test(
+  "This bug is a damned pain",
+  "ex: &e *[\"b\" &e]",
+  newProgram(@[
+    "ex" := ~[ & @"e", * ~[ ^"b", & @"e" ] ]
+  ])
+)
+
+test(
   "Extensions 1",
-  """
-  args: &arg *[" " &arg]
-  """,
+  "args: &arg *[\" \" &arg]",
   newProgram(@[
     newDefinition(
       "args",
@@ -57,8 +83,8 @@ test(
   ])
 )
 
-test(
-  "Adjoinment 1",
+#[ test(
+  "Adjoinment & Escapes",
   """
   handleString: "\"" $*char "\""
   """,
@@ -72,9 +98,9 @@ test(
       ]))
     ).Node
   ])
-)
+) ]#
 
-test(
+#[ test(
   "Comments 1",
   """
    /( Block comment! )
@@ -90,7 +116,7 @@ test(
       newLambda(newSet("aeiou"))
     ).Node
   ])
-)
+) ]#
 
 test(
   "Lambda 1",

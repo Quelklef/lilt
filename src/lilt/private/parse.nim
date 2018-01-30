@@ -7,6 +7,136 @@ import macros
 import outer_ast
 import strfix
 
+import ../inner_ast
+import quick
+import interpret
+import misc
+import sequtils
+
+# TODO comments
+
+let liltParserAst = outer_ast.newProgram(@[
+    # TODO: These are the builtins, since builtins aren't playing nice with types.nim
+      "_" := * <>" \t\n\c\l"
+
+    , "alpha" := <>"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    , "digit" := <>"1234567890"
+    , "alphanum" := |[ @"alpha", @"digit" ]
+    , "any" := |[ @"alphanum", <>"`!@#$%^&*()-=_+~;:'\"<>,.?/|\\", @"_" ]  # TODO: BAD!
+
+    , "identifier" := ~[ + @"alphanum" ]
+
+    # TODO: Allow for lambda to contain singleton.
+    # Type checking isn't quite right
+    , "program"    := ~[ "definitions" .= % ~[ * ~[ @"_", & @"definition" ] ], @"_" ]
+    , "definition" := ~[ "id" .= @"identifier" , @"_", ^":", @"_", "body" .= @"body" ]
+
+    , "body" := |[
+          @"sequence"
+        , @"choice"
+        , @"expression"
+    ]
+
+    # TODO It'd be nice to have a legislator that's "n or more times" like {} regex
+    #                                                         TODO dotspace
+    , "sequence" := ~[ "contents" .= % ~[ & @"expression", + ~[ * <>" \t", & @"expression" ] ] ]
+    , "choice"   := ~[ "contents" .= % ~[ & @"expression", + ~[ @"_", ^"|", @"_", & @"expression" ] ] ]
+
+    , "expression" := |[
+          @"property"  # Must go before reference because both begin with an identifier
+        , @"reference"
+        , @"literal"
+        , @"set"
+        , @"optional"
+        , @"oneplus"
+        , @"zeroplus"
+        , @"guard"
+        , @"adjoinment"
+        , @"extension"
+        , @"brackets"
+        , @"lambda"
+    ]
+
+    # TODO: Implementing as a singleton causes a type inference error
+    , "reference"   := ~[ "id" .= @"identifier" ]
+
+    , "literalChar" := ~[ ! ^"\"", @"any" ]
+    , "literal"     := ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]   # TODO: Escapes
+
+    , "setChar"     := ~[ ! ^">", @"any" ]
+    , "set"         := ~[ ^"<", "charset" .= * @"setChar", ^">" ]  # TODO: Escapes
+
+    , "optional"    := ~[ ^"?", "inner" .= @"expression" ]
+    , "oneplus"     := ~[ ^"+", "inner" .= @"expression" ]
+    , "zeroplus"    := ~[ ^"*", "inner" .= @"expression" ]
+    , "guard"       := ~[ ^"!", "inner" .= @"expression" ]
+
+    , "adjoinment"  := ~[ ^"$", "inner" .= @"adjoinment" ]
+    , "property"    := ~[ "propName" .= @"identifier", ^"=", "body" .= @"expression" ]
+    , "extension"   := ~[ ^"&", "inner" .= @"expression" ]
+
+    , "brackets"    := ~[ ^"[", @"_", "body" .= @"body", @"_", ^"]" ]
+    , "lambda"      := ~[ ^"{", @"_", "body" .= @"body", @"_", ^"}" ]
+])
+
+# Set lambda kinds
+for lamb in liltParserAst.descendants.filterOf(Lambda):
+    if lamb.parent of Definition:
+        lamb.returnNodeKind = lamb.parent.Definition.id
+
+let parsers: Table[string, interpret.Rule] = astToContext(liltParserAst)
+
+proc toOuterAst(node: inner_ast.Node): outer_ast.Node
+
+proc parseProgram*(code: string): outer_ast.Node =
+    return parsers["program"](0, code, initLambdaState(
+        liltParserAst.Program
+            .definitions.mapIt(it.Definition)
+            .findIt(it.id == "program")
+            .body.Lambda
+            .returnType.toLiltType
+    )).node.toOuterAst
+
+proc toOuterAst(node: inner_ast.Node): outer_ast.Node =
+    case node.kind:
+    of "program":
+        return newProgram(node["definitions"].list.mapIt(it.toOuterAst))
+    of "definition":
+        return newDefinition(node["id"].text, newLambda(node["body"].node.toOuterAst))
+    of "sequence":
+        return newSequence(node["contents"].list.mapIt(it.toOuterAst))
+    of "choice":
+        return newChoice(node["contents"].list.mapIt(it.toOuterAst))
+    of "reference":
+        return newReference(node["id"].text)
+    of "literal":
+        return newLiteral(node["text"].text)
+    of "set":
+        return newSet(node["charset"].text)
+    of "optional":
+        return newOptional(node["inner"].node.toOuterAst)
+    of "oneplus":
+        return newOnePlus(node["inner"].node.toOuterAst)
+    of "zeroplus":
+        return newOptional(newOnePlus(node["inner"].node.toOuterAst))
+    of "guard":
+        return newGuard(node["inner"].node.toOuterAst)
+    of "adjoinment":
+        return newAdjoinment(node["inner"].node.toOuterAst)
+    of "property":
+        return newProperty(node["propName"].text, node["inner"].node.toOuterAst)
+    of "extension":
+        return newExtension(node["inner"].node.toOuterAst)
+    of "brackets":
+        return node["body"].node.toOuterAst
+    of "lambda":
+        return newLambda(node["body"].node.toOuterAst)
+    else:
+        assert false
+
+
+#[
+
 #~# Parsers #~#
 
 #[
@@ -541,3 +671,5 @@ expose(parseLiteral)
 expose(parseReference)
 expose(parseAdjoinment)
 expose(parseLambda)
+
+]#

@@ -46,6 +46,9 @@ proc `==`*(prop: Property, other: Property): bool =
     of ltList:
         return prop.list == other.list
 
+proc `[]`*(node: Node, key: string): Property =
+    return node.properties[key]
+
 proc `==`*(node: Node, other: Node): bool =
     return node.properties == other.properties
 

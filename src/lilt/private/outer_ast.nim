@@ -44,6 +44,7 @@ type Node* = ref object of RootObj
     returnType*: RuleReturnType
     parent*: Node
 
+
 method typeName*(n: Node): string {.base.} =
     # Returns the name of the type of the node
     raise new(BaseError)
@@ -293,7 +294,7 @@ proc `$`*(node: Node): string =
         result &= "$1: $2, " % [key, $val]
     for key, val in node.listProps:
         result &= "$1: $2" % [key, $val]
-    result &= " }"
+    result &= "}"
 
 proc `$$`*(node: Node): string
 proc `$$`(list: seq[Node]): string =
@@ -326,13 +327,48 @@ proc isBranch*(n: Node): bool =
 proc isLeaf*(n: Node): bool =
     return not n.isBranch
 
-proc `==`*(node: Node, other: Node): bool =
+# TODO: This whole `equiv` nonsense is smelly
+
+proc sameKeys[K, V](t1: Table[K, V], t2: Table[K, V]): bool =
+    # TODO Make less inefficient
+    for key in t1.keys:
+        if key notin t2:
+            return false
+    for key in t2.keys:
+        if key notin t1:
+            return false
+    return true
+
+proc equiv*(node: Node, other: Node): bool
+
+proc equiv[K, V](t1: Table[K, V], t2: Table[K, V]): bool =
+    if not sameKeys(t1, t2):
+        return false
+
+    for key in t1.keys:
+        if not equiv(t1[key], t2[key]):
+            return false
+
+    return true
+
+proc equiv(s1: seq[Node], s2: seq[Node]): bool =
+    if s1.len != s2.len:
+        return false
+
+    for i in 0 ..< s1.len:
+        if not equiv(s1[i], s2[i]):
+            return false
+
+    return true
+
+proc equiv*(node: Node, other: Node): bool =
+    ## Not `==` because `==` is for identity.
     ## NOTE: This does not verifiy that the two nodes' have matching
     ## return type. This is intentional.
     return node of other.type and other of node.type and  # Ensure of same type
         node.textProps == other.textProps and
-        node.nodeProps == other.nodeProps and
-        node.listProps == other.listProps
+        equiv[string, Node](node.nodeProps, other.nodeProps) and
+        equiv[string, seq[Node]](node.listProps, other.listProps)
 
 proc descendants*(node: Node): seq[Node] =
     ## Recursively iterates through all descendants of given node.

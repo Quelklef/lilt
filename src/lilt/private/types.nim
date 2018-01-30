@@ -21,12 +21,13 @@ import misc
 type TypeError* = object of Exception
 type ReferenceError* = object of Exception
 
-type Known = seq[Node]  # Conceptually a hashset, but use a seq instead
+# TODO: Switch to hashset
+type Known = seq[Node]
 
 method inferReturnType(node: Node, known: Known): RuleReturnType {.base.} =
     raise new(BaseError)
 
-method canInfer(node: Node, known: Known): bool {.base.} =
+method canBeInferred(node: Node, known: Known): bool {.base.} =
     raise new(BaseError)
 
 #~# Independently typed nodes #~#
@@ -34,54 +35,54 @@ method canInfer(node: Node, known: Known): bool {.base.} =
 # whether or not we know the return types of any other nodes in
 # the AST.)
 
-method canInfer(prop: Property, known: Known): bool =
+method canBeInferred(prop: Property, known: Known): bool =
     return true
 method inferReturnType(prop: Property, known: Known): RuleReturnType =
     return rrtNone
 
-method canInfer(adj: Adjoinment, known: Known): bool =
+method canBeInferred(adj: Adjoinment, known: Known): bool =
     return true
 method inferReturnType(adj: Adjoinment, known: Known): RuleReturnType =
     return rrtNone
 
-method canInfer(ext: Extension, known: Known): bool =
+method canBeInferred(ext: Extension, known: Known): bool =
     return true
 method inferReturnType(ext: Extension, known: Known): RuleReturnType =
     return rrtNone
 
-method canInfer(guard: Guard, known: Known): bool =
+method canBeInferred(guard: Guard, known: Known): bool =
     return true
 method inferReturnType(guard: Guard, known: Known): RuleReturnType =
     return rrtNone
 
-method canInfer(se: Set, known: Known): bool =
+method canBeInferred(se: Set, known: Known): bool =
     return true
 method inferReturnType(se: Set, known: Known): RuleReturnType =
     return rrtText
 
-method canInfer(lit: Literal, known: Known): bool =
+method canBeInferred(lit: Literal, known: Known): bool =
     return true
 method inferReturnType(lit: Literal, known: Known): RuleReturnType =
     return rrtText
 
-method canInfer(se: Sequence, known: Known): bool =
+method canBeInferred(se: Sequence, known: Known): bool =
     return true
 method inferReturnType(se: Sequence, known: Known): RuleReturnType =
     return rrtText
 
-method canInfer(def: Definition, known: Known): bool =
+method canBeInferred(def: Definition, known: Known): bool =
     return true
 method inferReturnType(def: Definition, known: Known): RuleReturnType =
     return rrtNone
 
-method canInfer(prog: Program, known: Known): bool =
+method canBeInferred(prog: Program, known: Known): bool =
     return true
 method inferReturnType(prog: Program, known: Known): RuleReturnType =
     return rrtNone
 
 #~# Dependently typed nodes #~#
 
-method canInfer(op: OnePlus, known: Known): bool =
+method canBeInferred(op: OnePlus, known: Known): bool =
     return op.inner in known
 method inferReturnType(op: OnePlus, known: Known): RuleReturnType =
     let inner = op.inner
@@ -97,7 +98,7 @@ method inferReturnType(op: OnePlus, known: Known): RuleReturnType =
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
-method canInfer(opt: Optional, known: Known): bool =
+method canBeInferred(opt: Optional, known: Known): bool =
     return opt.inner in known
 method inferReturnType(opt: Optional, known: Known): RuleReturnType =
     if opt.inner.returnType == rrtNode:
@@ -105,7 +106,8 @@ method inferReturnType(opt: Optional, known: Known): RuleReturnType =
     else:
         return opt.inner.returnType
 
-method canInfer(re: Reference, known: Known): bool =
+method canBeInferred(re: Reference, known: Known): bool =
+    # TODO: Doesn't work with builtins
     let definitions = re.ancestors
         .findOf(Program)
         .descendants.filterOf(Definition)
@@ -115,25 +117,23 @@ method canInfer(re: Reference, known: Known): bool =
 
     return definitions
         .findIt(it.id == re.id)
-        .body.Lambda in known
+        .body in known
 method inferReturnType(re: Reference, known: Known): RuleReturnType =
-    let definitions = re.ancestors
+    # TODO: Doesn't work with builtins
+    return re.ancestors
         .findOf(Program)
         .descendants
         .filterOf(Definition)
+        .findIt(it.id == re.id)
+        .body.returnType
 
-    if re.id notin definitions.mapIt(it.id):
-        raise newException(TypeError, "No rule '$1'." % re.id)
-
-    return definitions.findIt(it.id == re.id).body.returnType
-
-method canInfer(choice: Choice, known: Known): bool =
+method canBeInferred(choice: Choice, known: Known): bool =
     return choice.children.allIt(it in known)
 method inferReturnType(choice: Choice, known: Known): RuleReturnType =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
-        raise newException(TypeError, "Choice must be homogenous. Got types: $2" % $innerTypes)
+        raise newException(TypeError, "Choice must be homogenous. Node '$1' got types: $2" % [$choice, $innerTypes])
 
     let allTypes = innerTypes[0]  # Type of all inner nodes
     if allTypes == rrtNone:
@@ -141,13 +141,14 @@ method inferReturnType(choice: Choice, known: Known): RuleReturnType =
 
     return allTypes
 
-method canInfer(lamb: Lambda, known: Known): bool =
+method canBeInferred(lamb: Lambda, known: Known): bool =
     let body = lamb.body
-    return (body of Sequence) or
-        (body of Choice and body in known) or
-        (body of Adjoinment or body of Property or body of Extension) or
-        (body in known)
+    return body of Sequence or
+        body of Choice and body in known or
+        body of Adjoinment or body of Property or body of Extension or
+        body in known
 proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
+    # Semantically meaningless; helper for inferReturnType
     if lamb.body of Sequence:
         for node in lamb.scoped:
             if node of Adjoinment:
@@ -174,19 +175,15 @@ proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
         else:
             return lamb.body.returnType
 method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
-    let rt = inferReturnTypeUnsafe(lamb, known)
+    result = inferReturnTypeUnsafe(lamb, known)
 
-    if rt == rrtNode:
+    if result == rrtNode:
         let isTopLevel = lamb.parent of Definition
         if not isTopLevel:
             raise newException(TypeError, "Only top-level Lambdas may return nodes.")
 
-    return rt
-
 proc inferReturnTypes*(ast: Node) =
-    # In reverse order because probably adds efficiency
-    # for reasons I'm too lazy to explain
-    var toInfer = concat(ast.layers.reversed)
+    var toInfer = concat(ast.layers)
     var known: seq[Node] = @[]
 
     while toInfer.len > 0:
@@ -195,7 +192,7 @@ proc inferReturnTypes*(ast: Node) =
         var head = 0
         while head < toInfer.len:
             let node = toInfer[head]
-            if node.canInfer(known):
+            if node.canBeInferred(known):
                 node.returnType = node.inferReturnType(known)
                 inc(inferredCount)
                 toInfer.del(head)
