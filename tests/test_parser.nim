@@ -76,7 +76,7 @@ test(
     "Escape quote",
     """ex: "\"" """,
     newProgram(@[
-        "ex" := ^"\\\""
+        "ex" := ^"\""
     ])
 )
 
@@ -84,7 +84,7 @@ test(
     "Escape set",
     """ex: <\>>""",
     newProgram(@[
-        "ex" := <>"\\>"
+        "ex" := <>">"
     ])
 )
 
@@ -92,7 +92,7 @@ test(
     "Escapes most",
     """ex: "\t\r\c\l\a\b\e\\" """,
     newProgram(@[
-        "ex" := ^"\\t\\r\\c\\l\\a\\b\\e\\\\"
+        "ex" := ^"\t\r\c\l\a\b\e\\"
     ])
 )
 

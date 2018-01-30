@@ -27,6 +27,7 @@ let liltParserAst = outer_ast.newProgram(@[
     , "identifier" := ~[ + @"alphanum" ]
 
     # TODO: Allow for lambda to contain singleton.
+    # as in: `.= % ~[ * ~[ ... ]]` should just be `.= % * ~[ ... ]`
     # Type checking isn't quite right
     , "program"    := ~[ "definitions" .= % ~[ * ~[ @"_", & @"definition" ] ], @"_" ]
     , "definition" := ~[ "id" .= @"identifier" , @"_", ^":", @"_", "body" .= @"body" ]
@@ -73,13 +74,13 @@ let liltParserAst = outer_ast.newProgram(@[
           ~[ @"escapeChar", ^"\"" ]  # \" OR
         , ~[ ! ^"\"", @"maybeEscapedChar" ]  # a non-" normally-behaving char
     ]
-    , "literal"     := ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]   # TODO: Escapes
+    , "literal"     := ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]
 
     , "setChar"     := |[
           ~[ @"escapeChar", ^">" ]  # \> OR
         , ~[ ! ^">", @"maybeEscapedChar" ]  # a non-> normally-behaving char
     ]
-    , "set"         := ~[ ^"<", "charset" .= * @"setChar", ^">" ]  # TODO: Escapes
+    , "set"         := ~[ ^"<", "charset" .= * @"setChar", ^">" ]
 
     , "optional"    := ~[ ^"?", "inner" .= @"expression" ]
     , "oneplus"     := ~[ ^"+", "inner" .= @"expression" ]
@@ -112,6 +113,21 @@ proc parseProgram*(code: string): outer_ast.Node =
             .returnType.toLiltType
     )).node.toOuterAst
 
+proc unescape(s: string): string =
+    # Maps escape codes to values
+    return s.multiReplace({
+        "\\\"": "\"",
+        "\\>": ">",
+        "\\t": "\t",
+        "\\r": "\r",
+        "\\c": "\c",
+        "\\l": "\l",
+        "\\a": "\a",
+        "\\b": "\b",
+        "\\e": "\e",
+        "\\\\": "\\",
+    })
+
 proc toOuterAst(node: inner_ast.Node): outer_ast.Node =
     case node.kind:
     of "program":
@@ -125,9 +141,9 @@ proc toOuterAst(node: inner_ast.Node): outer_ast.Node =
     of "reference":
         return newReference(node["id"].text)
     of "literal":
-        return newLiteral(node["text"].text)
+        return newLiteral(node["text"].text.unescape)
     of "set":
-        return newSet(node["charset"].text)
+        return newSet(node["charset"].text.unescape)
     of "optional":
         return newOptional(node["inner"].node.toOuterAst)
     of "oneplus":
