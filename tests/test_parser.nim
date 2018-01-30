@@ -100,6 +100,30 @@ test(
   ])
 )
 
+test(
+  "Escape quote",
+  """ex: "\"" """,
+  newProgram(@[
+    "ex" := ^"\\\""
+  ])
+)
+
+test(
+  "Escape set",
+  """ex: <\>>""",
+  newProgram(@[
+    "ex" := <>"\\>"
+  ])
+)
+
+test(
+  "Escapes most",
+  """ex: "\t\r\c\l\a\b\e\\" """,
+  newProgram(@[
+    "ex" := ^"\\t\\r\\c\\l\\a\\b\\e\\\\"
+  ])
+)
+
 #[ test(
   "Comments 1",
   """

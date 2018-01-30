@@ -57,13 +57,28 @@ let liltParserAst = outer_ast.newProgram(@[
         , @"lambda"
     ]
 
+    , "escapeChar" := ^"\\"
+    # Implements the following escapes: \trclabe
+    # In parsed code, they will appear with the backslash;
+    # the escapes need to be converted in Nim.
+    , "maybeEscapedChar" := |[
+          ~[ ! @"escapeChar", @"any" ]  # Any non-backslash OR
+        , ~[ @"escapeChar", <>"\\trclabe" ]  # A blackslash followed by one of: \trclabe
+    ]
+
     # TODO: Implementing as a singleton causes a type inference error
     , "reference"   := ~[ "id" .= @"identifier" ]
 
-    , "literalChar" := ~[ ! ^"\"", @"any" ]
+    , "literalChar" := |[
+          ~[ @"escapeChar", ^"\"" ]  # \" OR
+        , ~[ ! ^"\"", @"maybeEscapedChar" ]  # a non-" normally-behaving char
+    ]
     , "literal"     := ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]   # TODO: Escapes
 
-    , "setChar"     := ~[ ! ^">", @"any" ]
+    , "setChar"     := |[
+          ~[ @"escapeChar", ^">" ]  # \> OR
+        , ~[ ! ^">", @"maybeEscapedChar" ]  # a non-> normally-behaving char
+    ]
     , "set"         := ~[ ^"<", "charset" .= * @"setChar", ^">" ]  # TODO: Escapes
 
     , "optional"    := ~[ ^"?", "inner" .= @"expression" ]

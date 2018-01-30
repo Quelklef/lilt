@@ -9,8 +9,8 @@ template `:=`*(id: string, body: Node): Node = newDefinition(id, newLambda(body)
 
 template `%`*(body: Node): Node = newLambda(body)
 
-template `~`*(contents: openarray[Node]): Sequence = newSequence(@contents)
-template `|`*(contents: openarray[Node]): Choice = newChoice(@contents)
+template `~`*(contents: openarray[Node]): Node = newSequence(@contents)
+template `|`*(contents: openarray[Node]): Node = newChoice(@contents)
 
 template `<>`*(code: string): Node = newSet(code)
 template `@`*(id: string): Node = newReference(id)
