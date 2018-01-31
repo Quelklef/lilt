@@ -34,4 +34,15 @@ In order to create parsers, one should use the included `makeParsers` proc, whic
 
 It accepts a Lilt specification (:code:`code`), and returns all of the defined rules in that specification as a table mapping `string`s to `Parser`s.
 
-If :code:`consumeAll` is :code:`true`, then parsers will throw a :code:`ValueError` when they complete before consuming all text. For instance :code:`banana: "banana"` fed "banana and more". If :code:`consumeAll` is :code:`false`, no error will be thrown, and the generated :code:`LiltValue` will be returned (in this case, :code:`LiltValue(kind: ltText, text: "banana")`).
+If :code:`consumeAll` is :code:`true`, then parsers will throw a :code:`ValueError` if they complete before consuming all text. For instance :code:`banana: "banana"` fed "banana and more". If :code:`consumeAll` is :code:`false`, no error will be thrown, and the generated :code:`LiltValue` will be returned (in this case, :code:`LiltValue(kind: ltText, text: "banana")`).
+
+For your convenience, three :code:`LiltValue` initializers have also been included::
+
+    proc initLiltValue*(text: string): LiltValue =
+        return LiltValue(kind: ltText, text: text)
+
+    proc initLiltValue*(node: Node): LiltValue =
+        return LiltValue(kind: ltNode, node: node)
+
+    proc initLiltValue*(list: seq[Node]): LiltValue =
+        return LiltValue(kind: ltList, list: list)

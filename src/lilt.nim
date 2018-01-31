@@ -21,3 +21,5 @@ proc makeParsers*(code: string, consumeAll=true): Table[string, Parser] =
     let parsers = interpret.programToContext(ast, consumeAll)
 
     return parsers
+
+export base.initLiltValue
