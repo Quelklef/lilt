@@ -201,7 +201,7 @@ proc newSet*(charset: string): Set =
     return Set(charset: charset)
 
 proc newSet*(charset: set[char]): Set =
-    return newSet(charset.toString)
+    return newSet(charset.asString)
 
 method textProps*(s: Set): auto =
     return {"characters": s.charset}.toTable
@@ -454,11 +454,18 @@ proc layers*(node: ONode): seq[seq[ONode]] =
             result.add(newLayer)
 
 proc ancestors*(node: ONode): seq[ONode] =
+    ## All ancestors, not including given node
     result = @[]
     var curONode = node.parent
     while not curONode.isNil:
         result.add(curONode)
         curONode = curONode.parent
+
+proc lineage*(node: ONode): seq[ONode] =
+    ## All ancestors, including given node
+    var res = node.ancestors
+    res.insert([node], 0)
+    return res
 
 proc scoped*(node: ONode): seq[ONode] =
     # Return all of node's descendants, except those contained
@@ -472,3 +479,23 @@ proc scoped*(node: ONode): seq[ONode] =
             result.extend(currentNode.children)
         inc(head)
  
+proc findDefinition*(ast: ONode, id: string): ONode =
+    ## Returns the definition with the given identifier
+    #[
+    NOTE:
+    This is easily written as a one-liner.
+    However, doing so caused the compiler to crash.
+    Be careful re-writing this proc.
+    ]#
+    var root: Program
+    try:
+        root = ast.lineage.findOf(Program)
+    except IndexError:
+        raise newException(ValueError, "None of the given node's ancestors are of type Program.")
+
+    let definitions = root.definitions.mapIt(it.Definition)
+
+    try:
+        return definitions.findIt(it.id == id).body
+    except IndexError:
+        raise newException(ValueError, "No definition for rule '$1'." % id)

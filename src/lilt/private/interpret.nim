@@ -17,7 +17,7 @@ import strutils
 import sequtils
 
 import outer_ast
-import ../inner_ast
+import inner_ast
 import strfix
 import types
 import base
@@ -89,18 +89,6 @@ converter toRuleVal(retVal: (int, LambdaState)): RuleVal =
         head: retVal[0],
         lambdaState: retVal[1],
     )
-
-proc initLambdaState*(kind: LiltType): LambdaState =
-    case kind:
-    of ltText:
-        result = LambdaState(kind: ltText, text: "")
-    of ltList:
-        result = LambdaState(kind: ltList, list: @[])
-    of ltNode:
-        # The kind will be added in the top-leve sequence
-        result = LambdaState(kind: ltNode, node: inner_ast.initNode(""))
-    else:
-        assert false
 
 type LiltContext* = TableRef[string, Rule]
 
@@ -394,13 +382,26 @@ method translate(e: Extension, context: LiltContext): Rule =
 
     return debugWrap(rule, e)
 
-proc translate*(prog: Program): LiltContext =
-    ## Translates a program to a table of definitions
-    var context = newTable[string, Rule]()
-    for definition in prog.definitions.mapIt(it.Definition):
-        context[definition.id] = translate(definition.body, context)
-    return context
+#~# Exposed API #~#
 
-proc astToContext*(ast: ONode): Table[string, Rule] =
-    types.inferReturnTypes(ast)
-    return translate(Program(ast))[]
+proc toParser(rule: Rule, returnType: LiltType, consumeAll=true): Parser =
+    ## If `consumeall` is false, will not raise an error if rule doesn't fully consume code
+    if consumeall:
+        return proc(text: string): RuleVal =
+            result = rule(0, text, initLambdaState(returnType))
+            if result.head != text.len:
+                raise newException(ValueError, "Unconsumed code leftover")  # TODO better exception??
+    else:
+        return proc(text: string): RuleVal =
+            return rule(0, text, initLambdaState(returnType))
+
+proc programToContext*(ast: Program, consumeAll=true): Table[string, Parser] =
+    ## Translates a (preprocessed) program to a table of definitions
+    var liltContext = newTable[string, Rule]()
+    var resultTable = initTable[string, Parser]()
+    for definition in ast.definitions.mapIt(it.Definition):
+        let id = definition.id
+        let rule = translate(definition.body, liltContext)
+        liltContext[id] = rule
+        resultTable[id] = toParser(rule, ast.findDefinition(id).returnType.toLiltType, consumeAll)
+    return resultTable

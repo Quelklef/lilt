@@ -1,3 +1,4 @@
+
 #[
 Handles type inference in the outer ast.
 
@@ -193,7 +194,9 @@ method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
         if not isTopLevel:
             raise newException(TypeError, "Only top-level Lambdas may return nodes.")
 
-proc inferReturnTypes*(ast: ONode) =
+#~# Exposed API #~#
+
+proc inferReturnTypes(ast: ONode) =
     var toInfer = concat(ast.layers)
     var known: Known = @[]
 
@@ -217,3 +220,15 @@ proc inferReturnTypes*(ast: ONode) =
 
     if toInfer.len > 0:
         raise newException(TypeError, "Unable to infer all types.")
+
+proc setLambdaReturnKinds(node: ONode) =
+    ## Sets the return kind of all top-level lambdas
+    for lamb in node.descendants.filterOf(Lambda):
+        if lamb.parent of Definition:
+            lamb.returnNodeKind = lamb.parent.Definition.id
+
+proc preprocess*(ast: ONode) =
+    ## Infers the return types of the AST,
+    ## then sets the return kinds of all Lambdas
+    inferReturnTypes(ast)
+    setLambdaReturnKinds(ast)

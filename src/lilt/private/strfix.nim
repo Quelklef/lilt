@@ -1,3 +1,4 @@
+
 #~# Subtle string changes #~#
 
 import strutils

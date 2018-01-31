@@ -94,6 +94,23 @@ type
         of ltList:
             list*: seq[Node]
 
+    #[
+    The final level of abstraction is that of a Parser, which
+    accepts a bit of code and returns a RuleVal.
+    ]#
+    Parser* = proc(text: string): RuleVal
+
+proc initLambdaState*(kind: LiltType): LambdaState =
+    case kind:
+    of ltText:
+        result = LambdaState(kind: ltText, text: "")
+    of ltList:
+        result = LambdaState(kind: ltList, list: @[])
+    of ltNode:
+        # The kind will be added in the top-leve sequence
+        result = LambdaState(kind: ltNode, node: Node(kind: "", properties: newTable[string, Property]()))
+    else:
+        assert false
 
 proc toLiltType*(rrt: RuleReturnType): LiltType =
     case rrt:

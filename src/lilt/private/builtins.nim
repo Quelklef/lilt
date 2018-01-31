@@ -4,20 +4,16 @@ import tables
 
 import base
 import strfix
+import misc
 
 type Builtin = tuple[rrt: RuleReturnType, rule: Rule]
-
-proc joinItems(cs: set[char]): string =
-    result = ""
-    for c in cs:
-        result &= $c
 
 template toSingleRule(charset: set[char]): Builtin =
     block:
         proc rule(head: int, text: string, lambdaState: LambdaState): RuleVal =
             if text{head} in charset:
                 return RuleVal(head: head + 1, lambdaState: lambdaState, kind: rrtText, text: $text{head})
-            raise newException(RuleError, "Expected character in '$1'" % charset.joinItems)
+            raise newException(RuleError, "Expected character in '$1'" % charset.asString)
         (rrt: rrtText, rule: rule.Rule)
 
 proc toMultiRule(charset: set[char], lowerBound=0): Builtin =

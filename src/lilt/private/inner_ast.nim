@@ -5,15 +5,12 @@ that is, the AST which is a Lilt construct;
 that is, the AST used when _running_ Lilt code.
 ]#
 
-# TODO This shouldn't be in lilt/, it should be in private/
-# There should be a separate file exporting all important functionality
-
 import tables
 import strutils
 import sequtils
 
-import private/misc
-import private/base
+import misc
+import base
 
 import json
 

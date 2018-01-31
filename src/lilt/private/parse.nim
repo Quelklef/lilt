@@ -1,19 +1,16 @@
 
 import strutils
 import tables
-
 import macros
 
 import outer_ast
 import strfix
-
-import ../inner_ast
+import inner_ast
 import quick
 import interpret
 import misc
 import sequtils
-
-# TODO comments
+import types
 
 let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added to allow for a `,` in front of EVERY line after
     , "lineComment"   := ~[ ^"/", $: ^"", * ~[ ! @"newline", @"any" ] ]  # $: ^"" included so always returns ""
@@ -25,9 +22,6 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
 
     , "identifier" := ~[ + @"alphanum" ]
 
-    # TODO: Allow for lambda to contain singleton.
-    # as in: `.= % ~[ * ~[ ... ]]` should just be `.= % * ~[ ... ]`
-    # Type checking isn't quite right
     , "program"    := ~[ "definitions" .= % ~[ * ~[ @"d", & @"definition" ] ], @"d" ]
     , "definition" := ~[ "id" .= @"identifier" , @"d", ^":", @"_", "body" .= @"body" ]
 
@@ -65,8 +59,7 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
         , ~[ @"escapeChar", <>"\\trclabe" ]  # A blackslash followed by one of: \trclabe
     ]
 
-    # TODO: Implementing as a singleton causes a type inference error
-    , "reference"   := ~[ "id" .= @"identifier" ]
+    , "reference"   :=  ( "id" .= @"identifier" )
 
     , "literalChar" := |[
           ~[ @"escapeChar", ^"\"" ]  # \" OR
@@ -93,24 +86,14 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
     , "lambda"      := ~[ ^"{", @"d", "body" .= @"body", @"d", ^"}" ]
 ])
 
-# TODO: Remove the following 4 lines when appropriate
-# Set lambda kinds
-for lamb in liltParserAst.descendants.filterOf(Lambda):
-    if lamb.parent of Definition:
-        lamb.returnNodeKind = lamb.parent.Definition.id
-
-let parsers: Table[string, Rule] = astToContext(liltParserAst)
+types.preprocess(liltParserAst)
+let parsers: Table[string, Parser] = programToContext(liltParserAst)
+let programParser = parsers["program"]
 
 proc toOuterAst(node: inner_ast.Node): ONode
 
-proc parseProgram*(code: string): ONode =
-    return parsers["program"](0, code, initLambdaState(
-        liltParserAst.Program
-            .definitions.mapIt(it.Definition)
-            .findIt(it.id == "program")
-            .body.Lambda
-            .returnType.toLiltType
-    )).node.toOuterAst
+proc parseProgram*(code: string): Program =
+    return  programParser(code).node.toOuterAst.Program
 
 proc unescape(s: string): string =
     # Maps escape codes to values

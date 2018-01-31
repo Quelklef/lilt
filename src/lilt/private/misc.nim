@@ -65,7 +65,7 @@ template findOf*(sequence, kind: untyped): untyped =
     ## Additionally, convert that item to said type
     kind(sequence.findIt(it of kind))
 
-proc toString*(charset: set[char]): string =
+proc asString*(charset: set[char]): string =
     result = ""
     for c in charset:
         result &= c
