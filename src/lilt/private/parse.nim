@@ -7,6 +7,161 @@ import macros
 import outer_ast
 import strfix
 
+import ../inner_ast
+import quick
+import interpret
+import misc
+import sequtils
+
+# TODO comments
+
+let liltParserAst = outer_ast.newProgram(@[
+    # TODO: These are the builtins, since builtins aren't playing nice with types.nim
+      "identifier" := ~[ + @"alphanum" ]
+
+    # TODO: Allow for lambda to contain singleton.
+    # as in: `.= % ~[ * ~[ ... ]]` should just be `.= % * ~[ ... ]`
+    # Type checking isn't quite right
+    , "program"    := ~[ "definitions" .= % ~[ * ~[ @"_", & @"definition" ] ], @"_" ]
+    , "definition" := ~[ "id" .= @"identifier" , @"_", ^":", @"_", "body" .= @"body" ]
+
+    , "body" := |[
+          @"sequence"
+        , @"choice"
+        , @"expression"
+    ]
+
+    # TODO It'd be nice to have a legislator that's "n or more times" like {} regex
+    #                                                         TODO dotspace
+    , "sequence" := ~[ "contents" .= % ~[ & @"expression", + ~[ * <>" \t", & @"expression" ] ] ]
+    , "choice"   := ~[ "contents" .= % ~[ & @"expression", + ~[ @"_", ^"|", @"_", & @"expression" ] ] ]
+
+    , "expression" := |[
+          @"property"  # Must go before reference because both begin with an identifier
+        , @"reference"
+        , @"literal"
+        , @"set"
+        , @"optional"
+        , @"oneplus"
+        , @"zeroplus"
+        , @"guard"
+        , @"adjoinment"
+        , @"extension"
+        , @"brackets"
+        , @"lambda"
+    ]
+
+    , "escapeChar" := ^"\\"
+    # Implements the following escapes: \trclabe
+    # In parsed code, they will appear with the backslash;
+    # the escapes need to be converted in Nim.
+    , "maybeEscapedChar" := |[
+          ~[ ! @"escapeChar", @"any" ]  # Any non-backslash OR
+        , ~[ @"escapeChar", <>"\\trclabe" ]  # A blackslash followed by one of: \trclabe
+    ]
+
+    # TODO: Implementing as a singleton causes a type inference error
+    , "reference"   := ~[ "id" .= @"identifier" ]
+
+    , "literalChar" := |[
+          ~[ @"escapeChar", ^"\"" ]  # \" OR
+        , ~[ ! ^"\"", @"maybeEscapedChar" ]  # a non-" normally-behaving char
+    ]
+    , "literal"     := ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]
+
+    , "setChar"     := |[
+          ~[ @"escapeChar", ^">" ]  # \> OR
+        , ~[ ! ^">", @"maybeEscapedChar" ]  # a non-> normally-behaving char
+    ]
+    , "set"         := ~[ ^"<", "charset" .= * @"setChar", ^">" ]
+
+    , "optional"    := ~[ ^"?", "inner" .= @"expression" ]
+    , "oneplus"     := ~[ ^"+", "inner" .= @"expression" ]
+    , "zeroplus"    := ~[ ^"*", "inner" .= @"expression" ]
+    , "guard"       := ~[ ^"!", "inner" .= @"expression" ]
+
+    , "adjoinment"  := ~[ ^"$", "inner" .= @"expression" ]
+    , "property"    := ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
+    , "extension"   := ~[ ^"&", "inner" .= @"expression" ]
+
+    , "brackets"    := ~[ ^"[", @"_", "body" .= @"body", @"_", ^"]" ]
+    , "lambda"      := ~[ ^"{", @"_", "body" .= @"body", @"_", ^"}" ]
+])
+
+# TODO: Remove the following 4 lines when appropriate
+# Set lambda kinds
+for lamb in liltParserAst.descendants.filterOf(Lambda):
+    if lamb.parent of Definition:
+        lamb.returnNodeKind = lamb.parent.Definition.id
+
+let parsers: Table[string, Rule] = astToContext(liltParserAst)
+
+proc toOuterAst(node: inner_ast.Node): ONode
+
+proc parseProgram*(code: string): ONode =
+    return parsers["program"](0, code, initLambdaState(
+        liltParserAst.Program
+            .definitions.mapIt(it.Definition)
+            .findIt(it.id == "program")
+            .body.Lambda
+            .returnType.toLiltType
+    )).node.toOuterAst
+
+proc unescape(s: string): string =
+    # Maps escape codes to values
+    return s.multiReplace({
+        "\\\"": "\"",
+        "\\>": ">",
+        "\\t": "\t",
+        "\\r": "\r",
+        "\\c": "\c",
+        "\\l": "\l",
+        "\\a": "\a",
+        "\\b": "\b",
+        "\\e": "\e",
+        "\\\\": "\\",
+    })
+
+proc toOuterAst(node: inner_ast.Node): ONode =
+    case node.kind:
+    of "program":
+        return newProgram(node["definitions"].list.mapIt(it.toOuterAst))
+    of "definition":
+        return newDefinition(node["id"].text, newLambda(node["body"].node.toOuterAst))
+    of "sequence":
+        return newSequence(node["contents"].list.mapIt(it.toOuterAst))
+    of "choice":
+        return newChoice(node["contents"].list.mapIt(it.toOuterAst))
+    of "reference":
+        return newReference(node["id"].text)
+    of "literal":
+        return newLiteral(node["text"].text.unescape)
+    of "set":
+        return newSet(node["charset"].text.unescape)
+    of "optional":
+        return newOptional(node["inner"].node.toOuterAst)
+    of "oneplus":
+        return newOnePlus(node["inner"].node.toOuterAst)
+    of "zeroplus":
+        return newOptional(newOnePlus(node["inner"].node.toOuterAst))
+    of "guard":
+        return newGuard(node["inner"].node.toOuterAst)
+    of "adjoinment":
+        return newAdjoinment(node["inner"].node.toOuterAst)
+    of "property":
+        return newProperty(node["propName"].text, node["inner"].node.toOuterAst)
+    of "extension":
+        return newExtension(node["inner"].node.toOuterAst)
+    of "brackets":
+        return node["body"].node.toOuterAst
+    of "lambda":
+        return newLambda(node["body"].node.toOuterAst)
+    else:
+        assert false
+
+
+#[
+
 #~# Parsers #~#
 
 #[
@@ -27,7 +182,7 @@ For instance, a theoretical `parseNumber` applied Like
 Paresers should not, under any circumstance, modify
 the `code` variable.
 ]#
-type ParserValue = tuple[head: int, node: outer_ast.Node]
+type ParserValue = tuple[head: int, node: ONode]
 type Parser = proc(head: int, code: string): ParserValue
 
 proc `$`(pv: ParserValue): string =
@@ -290,7 +445,7 @@ proc parseOptional(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("?", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newOptional(innerNode))
@@ -299,7 +454,7 @@ proc parseOnePlus(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("+", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newOnePlus(innerNode))
@@ -309,7 +464,7 @@ proc parseZeroPlus(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("*", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newOptional(outer_ast.newOnePlus(innerNode)))
@@ -318,7 +473,7 @@ proc parseGuard(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
     head = head.consumeString("!", code)
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newGuard(innerNode))
@@ -330,7 +485,7 @@ proc parseBrackets(head: int, code: string): ParserValue {.debug.} =
     head = head.consumeString("[", code)
     head = head.consumeDeadspace(code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseBody(code)
 
     head = head.consumeDeadspace(code)
@@ -343,7 +498,7 @@ proc parseExtension(head: int, code: string): ParserValue {.debug.} =
     
     head = head.consumeString("&", code)
     
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newExtension(innerNode))
@@ -353,7 +508,7 @@ proc parseAdjoinment(head: int, code: string): ParserValue {.debug.} =
 
     head = head.consumeString("$", code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newAdjoinment(innerNode))
@@ -366,7 +521,7 @@ proc parseProperty(head: int, code: string): ParserValue {.debug.} =
 
     head = head.consumeString("=", code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseExpression(code)
 
     return (head, outer_ast.newProperty(propertyName, innerNode))
@@ -377,7 +532,7 @@ proc parseLambda(head: int, code: string): ParserValue {.debug.} =
     head = head.consumeString("{", code)
     head = head.consumeDeadspace(code)
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     (head, innerNode) = head.parseBody(code)
 
     head = head.consumeDeadspace(code)
@@ -411,7 +566,7 @@ proc parseExpression(head: int, code: string): ParserValue {.debug.} =
 proc parseChoice(head: int, code: string): ParserValue {.debug.} =
     var
         head = head
-        innerNodes: seq[outer_ast.Node] = @[]
+        innerNodes: seq[ONode] = @[]
         isFirst = true
         passedAtLeastOnePipe = false
 
@@ -429,7 +584,7 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
         else:
             isFirst = false
 
-        var innerNode: outer_ast.Node
+        var innerNode: ONode
         (head, innerNode) = head.parseExpression(code)
         innerNodes.add(innerNode)
 
@@ -437,10 +592,10 @@ proc parseChoice(head: int, code: string): ParserValue {.debug.} =
 
 proc parseSequence(head: int, code: string): ParserValue {.debug.} =
     var head = head
-    var innerNodes: seq[outer_ast.Node] = @[]
+    var innerNodes: seq[ONode] = @[]
     var isFirstItem = true
 
-    var innerNode: outer_ast.Node
+    var innerNode: ONode
     while head < code.len:
 
         let headBeforeConsumingSpace = head
@@ -491,7 +646,7 @@ proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
     head = head.consumeString(":", code)
     head = head.consumeDeadspace(code)  # Allow whitespace between ':' and body
 
-    var body: outer_ast.Node
+    var body: ONode
     (head, body) = head.parseBody(code)
 
     let lamb = newLambda(body, ide)
@@ -500,11 +655,11 @@ proc parseDefinition(head: int, code: string): ParserValue {.debug.} =
 proc parseProgram(head: int, code: string): ParserValue {.debug.} =
     var head = head
 
-    var definitions: seq[outer_ast.Node] = @[]
+    var definitions: seq[ONode] = @[]
 
     head = head.consumeDeadspace(code)
     while head < code.len:
-        var definition: outer_ast.Node
+        var definition: ONode
         (head, definition) = head.parseDefinition(code)
         definitions.add(definition)
         head = head.consumeDeadspace(code)
@@ -513,7 +668,7 @@ proc parseProgram(head: int, code: string): ParserValue {.debug.} =
 
 #~# Exposed API #~#
 
-proc parseProgram*(code: string): outer_ast.Node =
+proc parseProgram*(code: string): ONode =
     var (head, node) = parseProgram(0, code)
     if head < code.len:
         raise newException(ParsingError, "Extranious code at loc $1" % $head)
@@ -522,7 +677,7 @@ proc parseProgram*(code: string): outer_ast.Node =
 import macros
 macro expose(procName: untyped): typed =
     return quote do:
-        proc `procName`*(code: string): outer_ast.Node =
+        proc `procName`*(code: string): ONode =
             return `procName`(0, code).node
 
 expose(parseDefinition)
@@ -541,3 +696,5 @@ expose(parseLiteral)
 expose(parseReference)
 expose(parseAdjoinment)
 expose(parseLambda)
+
+]#

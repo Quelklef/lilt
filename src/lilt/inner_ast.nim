@@ -5,6 +5,9 @@ that is, the AST which is a Lilt construct;
 that is, the AST used when _running_ Lilt code.
 ]#
 
+# TODO This shouldn't be in lilt/, it should be in private/
+# There should be a separate file exporting all important functionality
+
 import tables
 import strutils
 import sequtils
@@ -15,24 +18,6 @@ import private/base
 import json
 
 export base
-
-type
-    # Type of an property on a node
-    # Each property can either be text, a node, or a list of nodes
-    Property* = object
-        case kind*: LiltType
-        of ltText:
-            text*: string
-        of ltNode:
-            node*: Node
-        of ltList:
-            # Children
-            list*: seq[Node]
-
-    Node* = object
-        kind*: string
-        # Want properties to be mutable so that Property may modify it during runtime
-        properties*: TableRef[string, Property]
 
 proc `==`*(prop: Property, other: Property): bool =
     if prop.kind != other.kind:
@@ -45,6 +30,9 @@ proc `==`*(prop: Property, other: Property): bool =
         return prop.node == other.node
     of ltList:
         return prop.list == other.list
+
+proc `[]`*(node: Node, key: string): Property =
+    return node.properties[key]
 
 proc `==`*(node: Node, other: Node): bool =
     return node.properties == other.properties
@@ -148,28 +136,3 @@ proc toAst*(jast: JsonNode): Node =
 template `~~`*(x: untyped): untyped =
   toAst(%* x)
 
-
-when isMainModule:
-    let test = ~~ {
-        "kind": "alligator",
-        "teeth": [
-            {
-                "kind": "tooth",
-                "strength": nil,
-                "broken": true
-            },
-            {
-                "kind": "tooth",
-                "strength": 11.8,
-                "broken": false
-            },
-            {
-                "kind": "tooth",
-                "strength": 30,
-                "broken": false
-            }
-        ],
-        "color": "green"
-    }
-
-    echo $$test

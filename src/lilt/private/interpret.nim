@@ -19,47 +19,10 @@ import sequtils
 import outer_ast
 import ../inner_ast
 import strfix
-import parse
 import types
 import base
-from misc import findIt
-
-#[
-Most Lilt constructs are translated into Rules,
-which are functions which take code and either
-a) return an integer, the amount of code consumed,
-or b) fail. (Sound familiar?)
-
-Failing is done by raising a RuleError.
-]#
-
-type
-    RuleVal* = object of RootObj
-        head*: int
-        lambdaState*: LambdaState
-
-        case kind*: RuleReturnType:
-        of rrtText:
-            text*: string
-        of rrtNode:
-            node*: inner_ast.Node
-        of rrtList:
-            list*: seq[inner_ast.Node]
-        of rrtNone:
-            discard
-
-    #[
-    Each new reference / run of a definiton's rule makes a new LambdaState.
-    This LambdaState is what the statements in the rule modifies.
-    ]#
-    LambdaState* = object of RootObj
-        case kind*: LiltType
-        of ltText:
-            text*: string
-        of ltNode:
-            node*: inner_ast.Node
-        of ltList:
-            list*: seq[inner_ast.Node]
+import misc
+import builtins
 
 proc toProperty(rv: RuleVal): inner_ast.Property =
     case rv.kind:
@@ -139,14 +102,11 @@ proc initLambdaState*(kind: LiltType): LambdaState =
     else:
         assert false
 
-type Rule* = proc(head: int, text: string, lambdaState: LambdaState): RuleVal
-type RuleError* = object of Exception
-
 type LiltContext* = TableRef[string, Rule]
 
 const doDebug = false
 when not doDebug:
-    template debugWrap(rule: Rule, node: outer_ast.Node): Rule =
+    template debugWrap(rule: Rule, node: ONode): Rule =
         rule
 
 else:
@@ -163,9 +123,12 @@ else:
         dec(debugDepth)
         debugEcho(msg)
 
-    proc debugWrap(rule: Rule, node: outer_ast.Node): Rule =
+    proc debugWrap(rule: Rule, node: ONode): Rule =
         proc wrappedRule(head: int, text: string, lambdaState: LambdaState): RuleVal =
-            debugPush("Attempting to match $1" % $node)
+            const snippetSize = 15
+            # Documentation of this line is left as an excersize for the reader:
+            let textSnippet = text[max(0, head - snippetSize) .. head - 1] & "[" & text[head] & "]" & text[head + 1 .. min(text.len, head + snippetSize)]
+            debugPush("Attempting to match `$1` to `$2`" % [textSnippet, node.toLilt])
             try:
                 result = rule(head, text, lambdaState)
             except RuleError as e:
@@ -179,37 +142,8 @@ else:
 
 type WrongTypeError = object of Exception
 
-method translate(node: outer_ast.Node, context: LiltContext): Rule {.base.} =
+method translate(node: ONode, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
-
-let emptyContext = newTable[string, Rule]()
-
-template toRule[T](s: set[T]): Rule =
-    translate(newSet(s), emptyContext)
-
-let builtins = {
-    "newline": translate(
-        newOptional(newOnePlus(
-            newSet("\r\l")
-        )),
-        emptyContext
-    ),
-    "whitespace": strutils.Whitespace.toRule,
-    "_": translate(
-        newOptional(newOnePlus(
-            newSet(strutils.Whitespace)
-        )),
-        emptyContext
-    ),
-    "any": Rule(proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
-        return (head + 1, lambdaState)
-    ),
-    "lower": {'a' .. 'z'}.toRule,
-    "upper": {'A' .. 'Z'}.toRule,
-    "alpha": strutils.Letters.toRule,
-    "digit": strutils.Digits.toRule,
-    "alphanum": toRule(strutils.Letters + strutils.Digits),
-}.newTable
 
 method translate(re: Reference, context: LiltContext): Rule =
     proc rule(head: int, text: string, lambdaState: LambdaState): RuleVal =
@@ -217,7 +151,7 @@ method translate(re: Reference, context: LiltContext): Rule =
         if re.id in context:
             return context[re.id](head, text, lambdaState)
         else:
-            return builtins[re.id](head, text, lambdaState)
+            return liltBuiltins[re.id].rule(head, text, lambdaState)
 
     return debugWrap(rule, re)
 
@@ -467,23 +401,6 @@ proc translate*(prog: Program): LiltContext =
         context[definition.id] = translate(definition.body, context)
     return context
 
-proc interpret*(text: string, ruleName: string, input: string): RuleVal =
-    # Interprets a piece of Lilt code
-    # Note that it does not complain if the chosen rule does not
-    # consume all input text
-    let ast: outer_ast.Node = parse.parseProgram(text)
-
+proc astToContext*(ast: ONode): Table[string, Rule] =
     types.inferReturnTypes(ast)
-
-    let definitions = translate(Program(ast))
-    let rule: Rule = definitions[ruleName]
-    
-    let ruleVal = rule(0, input, initLambdaState(
-        ast.Program
-            .definitions.mapIt(it.Definition)
-            .findIt(it.id == ruleName)
-            .body.Lambda
-            .returnType.toLiltType
-    ))
-
-    return ruleVal
+    return translate(Program(ast))[]
