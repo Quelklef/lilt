@@ -81,13 +81,14 @@ let liltParserAst = outer_ast.newProgram(@[
     , "guard"       := ~[ ^"!", "inner" .= @"expression" ]
 
     , "adjoinment"  := ~[ ^"$", "inner" .= @"expression" ]
-    , "property"    := ~[ "propName" .= @"identifier", ^"=", "body" .= @"expression" ]
+    , "property"    := ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
     , "extension"   := ~[ ^"&", "inner" .= @"expression" ]
 
     , "brackets"    := ~[ ^"[", @"_", "body" .= @"body", @"_", ^"]" ]
     , "lambda"      := ~[ ^"{", @"_", "body" .= @"body", @"_", ^"}" ]
 ])
 
+# TODO: Remove the following 4 lines when appropriate
 # Set lambda kinds
 for lamb in liltParserAst.descendants.filterOf(Lambda):
     if lamb.parent of Definition:

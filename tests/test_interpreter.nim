@@ -1,18 +1,33 @@
 
 import ../src/lilt/private/parse
-import ../src/lilt/private/types
 import ../src/lilt/inner_ast
 import ../src/lilt/private/outer_ast
 import ../src/lilt/private/interpret
+import ../src/lilt/private/misc
 
 import tables
 import strutils
+import sequtils
 
-proc test(testName: string, code: string, rule: string, input: string, expected: inner_ast.Node) =
+proc test(testName: string, code: string, ruleName: string, input: string, expected: inner_ast.Node) =
     # Test must expect a node, not a list or code.
     echo "Running test '$1'" % testName
     let ast = parseProgram(code).Program
-    let res: RuleVal = interpret(code, rule, input)
+
+    # TODO: This 3-liner REALLY needs to go in some proc.
+    # In fact, the entire interpreter API needs to be cleaned up
+    for lamb in ast.descendants.filterOf(Lambda):
+        if lamb.parent of Definition:
+            lamb.returnNodeKind = lamb.parent.Definition.id
+
+    let ctx = astToContext(ast)
+    let rule = ctx[ruleName]
+    let res = rule(0, input, initLambdaState(ast.
+        descendants
+        .filterOf(Definition)
+        .findIt(it.id == ruleName)
+        .body
+        .returnType.toLiltType))
 
     var resNode: inner_ast.Node
     case res.kind:
