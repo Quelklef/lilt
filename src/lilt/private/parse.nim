@@ -15,14 +15,21 @@ import sequtils
 
 # TODO comments
 
-let liltParserAst = outer_ast.newProgram(@[
-      "identifier" := ~[ + @"alphanum" ]
+let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added to allow for a `,` in front of EVERY line after
+    , "lineComment"   := ~[ ^"/", $: ^"", * ~[ ! @"newline", @"any" ] ]  # $: ^"" included so always returns ""
+    , "blockComment"  := ~[ ^"((", $: ^"", * ~[ ! ^"))", @"any" ], ^"))" ]
+    , "comment"       := |[ @"lineComment", @"blockComment" ]
+
+    # `d` as in "dead space"
+    , "d" := * |[ @"whitespace", @"comment" ]
+
+    , "identifier" := ~[ + @"alphanum" ]
 
     # TODO: Allow for lambda to contain singleton.
     # as in: `.= % ~[ * ~[ ... ]]` should just be `.= % * ~[ ... ]`
     # Type checking isn't quite right
-    , "program"    := ~[ "definitions" .= % ~[ * ~[ @"_", & @"definition" ] ], @"_" ]
-    , "definition" := ~[ "id" .= @"identifier" , @"_", ^":", @"_", "body" .= @"body" ]
+    , "program"    := ~[ "definitions" .= % ~[ * ~[ @"d", & @"definition" ] ], @"d" ]
+    , "definition" := ~[ "id" .= @"identifier" , @"d", ^":", @"_", "body" .= @"body" ]
 
     , "body" := |[
           @"sequence"
@@ -30,10 +37,9 @@ let liltParserAst = outer_ast.newProgram(@[
         , @"expression"
     ]
 
-    # TODO It'd be nice to have a legislator that's "n or more times" like {} regex
     #                                                         TODO dotspace
-    , "sequence" := ~[ "contents" .= % ~[ & @"expression", + ~[ * <>" \t", & @"expression" ] ] ]
-    , "choice"   := ~[ "contents" .= % ~[ & @"expression", + ~[ @"_", ^"|", @"_", & @"expression" ] ] ]
+    , "sequence" := ~[ "contents" .= % ~[ & @"expression", + ~[ * |[ <>" \t", @"comment" ], & @"expression" ] ] ]
+    , "choice"   := ~[ "contents" .= % ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
 
     , "expression" := |[
           @"property"  # Must go before reference because both begin with an identifier
@@ -83,8 +89,8 @@ let liltParserAst = outer_ast.newProgram(@[
     , "property"    := ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
     , "extension"   := ~[ ^"&", "inner" .= @"expression" ]
 
-    , "brackets"    := ~[ ^"[", @"_", "body" .= @"body", @"_", ^"]" ]
-    , "lambda"      := ~[ ^"{", @"_", "body" .= @"body", @"_", ^"}" ]
+    , "brackets"    := ~[ ^"[", @"d", "body" .= @"body", @"d", ^"]" ]
+    , "lambda"      := ~[ ^"{", @"d", "body" .= @"body", @"d", ^"}" ]
 ])
 
 # TODO: Remove the following 4 lines when appropriate

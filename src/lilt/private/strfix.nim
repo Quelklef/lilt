@@ -21,13 +21,13 @@ proc `{}`*(s: string, i: int): char =
     if i == s.len:
         return '\0'
     if i >= s.len:
-        raise newException(IndexError, "$0 is out of bounds." % $i)
+        raise newException(IndexError, "$1 is out of bounds." % $i)
     return s[i]
 
 # Additionally, hotfix the expected patches to ensure futureproofness (TM)
 proc `[]`*(s: string, i: int): char =
     if i == s.len:
-        raise newException(IndexError, "$0 is out of bounds." % $i)
+        raise newException(IndexError, "$1 is out of bounds." % $i)
     return s[i]
 
 # Careful using [slice] and [slice]=

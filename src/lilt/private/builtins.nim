@@ -20,14 +20,18 @@ template toSingleRule(charset: set[char]): Builtin =
             raise newException(RuleError, "Expected character in '$1'" % charset.joinItems)
         (rrt: rrtText, rule: rule.Rule)
 
-proc toMultiRule(charset: set[char]): Builtin =
+proc toMultiRule(charset: set[char], lowerBound=0): Builtin =
     ## Returns a rule which consumes contiguous text in the given charset
+    ## Errors if consumed <lowerBound characters
     block:
         proc rule(head: int, text: string, lambdaState: LambdaState): RuleVal =
             var endHead = head
 
             while text{endHead} in charset:
                 inc(endHead)
+
+            if endHead - head < lowerBound:
+                raise newException(RuleError, "Did not consume at least $1 characters." % $lowerBound)
 
             return RuleVal(
                 head: endHead,
@@ -40,7 +44,7 @@ proc toMultiRule(charset: set[char]): Builtin =
 # Would call it 'builtins' but that was causing me trouble.
 # Probably because this file is builtins.nim, so `import builtins` then `builtins[]` is iffy
 let liltBuiltins*: TableRef[string, tuple[rrt: RuleReturnType, rule: Rule]] = {
-    "newline": {'\c', '\r'}.toMultiRule,
+    "newline": {'\l', '\c'}.toMultiRule(1),
     "whitespace": strutils.Whitespace.toSingleRule,
     "_": strutils.Whitespace.toMultiRule,
     "any": strutils.AllChars.toSingleRule,

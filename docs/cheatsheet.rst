@@ -9,7 +9,7 @@ Constructs
 Construct name          Syntax                      Semantics                               
 ======================= =========================== ====================================================
 Line comments           :code:`/text`               Ignored by the parser
-Inline & block comments :code:`/(text)`             Ignored by the parser
+Inline & block comments :code:`((text))`            Ignored by the parser
 Brackets                :code:`[code]`              Like parenthesis
 Definition              :code:`identifier: body`    Defines a rule
 Reference               :code:`ruleName`            References / "calls" a named rule
