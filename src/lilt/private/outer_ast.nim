@@ -15,15 +15,16 @@ nodeProps, or listProps.
 import sequtils
 import strutils
 import tables
+import options
 
 import misc
 import base
 
-# We call this ONode just to differentiate it from base.Node
-type ONode* = ref object of RootObj
-    returnType*: RuleReturnType
-    parent*: ONode
-
+type
+    # We call this ONode just to differentiate it from base.Node
+    ONode* = ref object of RootObj
+        returnType*: Option[LiltType]  # Rules may return a Lilt value or nothing
+        parent*: ONode
 
 method typeName(n: ONode): string {.base.} =
     # Returns the name of the type of the ONode

@@ -2,18 +2,16 @@
 #[
 Handles type inference in the outer ast.
 
-Programs are always typeless (rrtNone)
+Programs are always typeless (none(LiltType))
 Definitions are semantically typeless but are a special case; definitions' return types match those
     of their inner rule.
 
 All other nodes' return types have semantic meaning.
 ]#
 
-import sets
-import macros
-import hashes
-import sequtils
+import options
 import strutils
+import sequtils
 import tables
 
 import base
@@ -27,7 +25,7 @@ type ReferenceError* = object of Exception
 # TODO: Switch to hashset
 type Known = seq[ONode]
 
-method inferReturnType(node: ONode, known: Known): RuleReturnType {.base.} =
+method inferReturnType(node: ONode, known: Known): Option[LiltType] {.base.} =
     raise new(BaseError)
 
 method canBeInferred(node: ONode, known: Known): bool {.base.} =
@@ -40,72 +38,73 @@ method canBeInferred(node: ONode, known: Known): bool {.base.} =
 
 method canBeInferred(prop: outer_ast.Property, known: Known): bool =
     return true
-method inferReturnType(prop: outer_ast.Property, known: Known): RuleReturnType =
-    return rrtNone
+method inferReturnType(prop: outer_ast.Property, known: Known): Option[LiltType] =
+    return none(LiltType)
 
 method canBeInferred(adj: Adjoinment, known: Known): bool =
     return true
-method inferReturnType(adj: Adjoinment, known: Known): RuleReturnType =
-    return rrtNone
+method inferReturnType(adj: Adjoinment, known: Known): Option[LiltType] =
+    return none(LiltType)
 
 method canBeInferred(ext: Extension, known: Known): bool =
     return true
-method inferReturnType(ext: Extension, known: Known): RuleReturnType =
-    return rrtNone
+method inferReturnType(ext: Extension, known: Known): Option[LiltType] =
+    return none(LiltType)
 
 method canBeInferred(guard: Guard, known: Known): bool =
     return true
-method inferReturnType(guard: Guard, known: Known): RuleReturnType =
-    return rrtNone
+method inferReturnType(guard: Guard, known: Known): Option[LiltType] =
+    return none(LiltType)
 
 method canBeInferred(se: Set, known: Known): bool =
     return true
-method inferReturnType(se: Set, known: Known): RuleReturnType =
-    return rrtText
+method inferReturnType(se: Set, known: Known): Option[LiltType] =
+    return some(ltText)
 
 method canBeInferred(lit: Literal, known: Known): bool =
     return true
-method inferReturnType(lit: Literal, known: Known): RuleReturnType =
-    return rrtText
+method inferReturnType(lit: Literal, known: Known): Option[LiltType] =
+    return some(ltText)
 
 method canBeInferred(se: Sequence, known: Known): bool =
     return true
-method inferReturnType(se: Sequence, known: Known): RuleReturnType =
-    return rrtText
+method inferReturnType(se: Sequence, known: Known): Option[LiltType] =
+    return some(ltText)
 
 method canBeInferred(def: Definition, known: Known): bool =
     return true
-method inferReturnType(def: Definition, known: Known): RuleReturnType =
-    return rrtNone
+method inferReturnType(def: Definition, known: Known): Option[LiltType] =
+    return none(LiltType)
 
 method canBeInferred(prog: Program, known: Known): bool =
     return true
-method inferReturnType(prog: Program, known: Known): RuleReturnType =
-    return rrtNone
+method inferReturnType(prog: Program, known: Known): Option[LiltType] =
+    return none(LiltType)
 
 #~# Dependently typed nodes #~#
 
 method canBeInferred(op: OnePlus, known: Known): bool =
     return op.inner in known
-method inferReturnType(op: OnePlus, known: Known): RuleReturnType =
+method inferReturnType(op: OnePlus, known: Known): Option[LiltType] =
     let inner = op.inner
 
-    case inner.returnType:
-    of rrtText:
-        return rrtText
-    of rrtNode:
-        return rrtList
-    of rrtNone:
+    if inner.returnType.isNone:
         # If typeless, execute statement several times and return nothing
-        return rrtNone
+        return none(LiltType)
+
+    case inner.returnType.get:
+    of ltText:
+        return some(ltText)
+    of ltNode:
+        return some(ltList)
     else:
         raise newException(TypeError, "Cannot have OnePlus of rule that returns type '$1'" % $inner.returnType)
 
 method canBeInferred(opt: Optional, known: Known): bool =
     return opt.inner in known
-method inferReturnType(opt: Optional, known: Known): RuleReturnType =
-    if opt.inner.returnType == rrtNode:
-        return rrtNone
+method inferReturnType(opt: Optional, known: Known): Option[LiltType] =
+    if opt.inner.returnType == none(LiltType):
+        return none(LiltType)
     else:
         return opt.inner.returnType
 
@@ -126,7 +125,7 @@ method canBeInferred(re: Reference, known: Known): bool =
             .body in known
     if inBuiltins:
         return true  # Since all builtins' return types are known
-method inferReturnType(re: Reference, known: Known): RuleReturnType =
+method inferReturnType(re: Reference, known: Known): Option[LiltType] =
     let inBuiltins = re.id in liltBuiltins
 
     if not inBuiltins:
@@ -137,18 +136,18 @@ method inferReturnType(re: Reference, known: Known): RuleReturnType =
             .findIt(it.id == re.id)
             .body.returnType
     else:
-        return liltBuiltins[re.id].rrt
+        return liltBuiltins[re.id].returnType
 
 method canBeInferred(choice: Choice, known: Known): bool =
     return choice.children.allIt(it in known)
-method inferReturnType(choice: Choice, known: Known): RuleReturnType =
+method inferReturnType(choice: Choice, known: Known): Option[LiltType] =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
         raise newException(TypeError, "Choice must be homogenous. Node '$1' got types: $2" % [$choice, $innerTypes])
 
     let allTypes = innerTypes[0]  # Type of all inner nodes
-    if allTypes == rrtNone:
+    if allTypes == none(LiltType):
         raise newException(TypeError, "Choice must return non-None type.")
 
     return allTypes
@@ -159,37 +158,37 @@ method canBeInferred(lamb: Lambda, known: Known): bool =
         body of Choice and body in known or
         body of Adjoinment or body of outer_ast.Property or body of Extension or
         body in known
-proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): RuleReturnType =
+proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): Option[LiltType] =
     # Semantically meaningless; helper for inferReturnType
     if lamb.body of Sequence:
         for node in lamb.scoped:
             if node of Adjoinment:
-                return rrtText
+                return some(ltText)
             elif node of outer_ast.Property:
-                return rrtNode
+                return some(ltNode)
             elif node of Extension:
-                return rrtList
-        return rrtText
+                return some(ltList)
+        return some(ltText)
 
     elif lamb.body of Choice:
         return lamb.body.returnType
 
     elif lamb.body of Adjoinment:
-        return rrtText
+        return some(ltText)
     elif lamb.body of outer_ast.Property:
-        return rrtNode
+        return some(ltNode)
     elif lamb.body of Extension:
-        return rrtList
+        return some(ltList)
 
     else:
-        if lamb.body.returnType == rrtNone:
-            return rrtText
+        if lamb.body.returnType == none(LiltType):
+            return some(ltText)
         else:
             return lamb.body.returnType
-method inferReturnType(lamb: Lambda, known: Known): RuleReturnType =
+method inferReturnType(lamb: Lambda, known: Known): Option[LiltType] =
     result = inferReturnTypeUnsafe(lamb, known)
 
-    if result == rrtNode:
+    if result == some(ltNode):
         let isTopLevel = lamb.parent of Definition
         if not isTopLevel:
             raise newException(TypeError, "Only top-level Lambdas may return nodes.")

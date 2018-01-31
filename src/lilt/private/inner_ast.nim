@@ -16,19 +16,7 @@ import json
 
 export base
 
-proc `==`*(prop: Property, other: Property): bool =
-    if prop.kind != other.kind:
-        return false
-
-    case prop.kind:
-    of ltText:
-        return prop.text == other.text
-    of ltNode:
-        return prop.node == other.node
-    of ltList:
-        return prop.list == other.list
-
-proc `[]`*(node: Node, key: string): Property =
+proc `[]`*(node: Node, key: string): LiltValue =
     return node.properties[key]
 
 proc `==`*(node: Node, other: Node): bool =
@@ -51,7 +39,7 @@ proc seqToJsonNode(se: seq[JsonNode]): JsonNode =
     result = newJArray()
     result.elems = se
 
-proc toJson(prop: Property): JsonNode =
+proc toJson(prop: LiltValue): JsonNode =
     case prop.kind:
     of ltText:
         return %prop.text
@@ -69,34 +57,25 @@ proc toJson*(node: Node): JsonNode =
 
 #~#
 
-proc initProperty*(text: string): Property =
-    return Property(kind: ltText, text: text)
-
-proc initProperty*(node: Node): Property =
-    return Property(kind: ltNode, node: node)
-
-proc initProperty*(list: seq[Node]): Property =
-    return Property(kind: ltList, list: list)
-
 proc initNode*(kind: string): Node =
-    return Node(kind: kind, properties: newTable[string, Property]())
+    return Node(kind: kind, properties: newTable[string, LiltValue]())
 
-proc initNode*(kind: string, props: TableRef[string, Property]): Node =
+proc initNode*(kind: string, props: TableRef[string, LiltValue]): Node =
     return Node(kind: kind, properties: props)
 
-proc initNode*(kind: string, props: openarray[(string, Property)]): Node =
+proc initNode*(kind: string, props: openarray[(string, LiltValue)]): Node =
     return Node(kind: kind, properties: props.newTable)
 
 proc initNode*(kind: string, props: openarray[(string, string)]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: ltText, text: it[1])) ).newTable
+    let properties = @props.mapIt( (it[0], LiltValue(kind: ltText, text: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 proc initNode*(kind: string, props: openarray[(string, Node)]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: ltNode, node: it[1])) ).newTable
+    let properties = @props.mapIt( (it[0], LiltValue(kind: ltNode, node: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 proc initNode*(kind: string, props: openarray[(string, seq[Node])]): Node =
-    let properties = @props.mapIt( (it[0], Property(kind: ltList, list: it[1])) ).newTable
+    let properties = @props.mapIt( (it[0], LiltValue(kind: ltList, list: it[1])) ).newTable
     return Node(kind: kind, properties: properties)
 
 #~# Pretty AST Creation Syntax #~#
@@ -107,7 +86,7 @@ proc toAst*(jast: JsonNode): Node =
         assert false
     of JObject:
         let fields = jast.fields
-        var resultProps = newTable[string, Property]()
+        var resultProps = newTable[string, LiltValue]()
         result = initNode(fields["kind"].str, resultProps)
 
         for field, val in fields:
@@ -115,19 +94,19 @@ proc toAst*(jast: JsonNode): Node =
 
             case val.kind:
             of JString:
-                resultProps[field] = initProperty(val.str)
+                resultProps[field] = initLiltValue(val.str)
             of JInt:
-                resultProps[field] = initProperty($val.num)
+                resultProps[field] = initLiltValue($val.num)
             of JFloat:
-                resultProps[field] = initProperty($val.fnum)
+                resultProps[field] = initLiltValue($val.fnum)
             of JBool:
-                resultProps[field] = initProperty($val.bval)
+                resultProps[field] = initLiltValue($val.bval)
             of JNull:
-                resultProps[field] = initProperty("null")
+                resultProps[field] = initLiltValue("null")
             of JObject:
-                resultProps[field] = initProperty(toAst(val))
+                resultProps[field] = initLiltValue(toAst(val))
             of JArray:
-                resultProps[field] = initProperty(val.elems.mapIt(it.toAst))
+                resultProps[field] = initLiltValue(val.elems.mapIt(it.toAst))
 
 
 template `~~`*(x: untyped): untyped =

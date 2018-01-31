@@ -1,6 +1,7 @@
 
 import tables
 import strutils
+import options
 
 import lilt/private/base
 import lilt/private/inner_ast

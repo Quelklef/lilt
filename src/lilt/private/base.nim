@@ -7,6 +7,7 @@ doing it this was also offers a number of other benefits.
 ]#
 
 import tables
+import options
 
 type
     #[
@@ -21,6 +22,15 @@ type
         ltNode
         ltList
 
+    LiltValue* = object
+        case kind*: LiltType
+        of ltText:
+            text*: string
+        of ltNode:
+            node*: Node
+        of ltList:
+            list*: seq[Node]
+
 
     #[
     Type representing a Node on the generated AST.
@@ -28,20 +38,8 @@ type
     Node* = object
         kind*: string
         # Want properties to be mutable so that outer_ast.Property may modify it during runtime
-        # TODO: Once states become immutable, this should, too
-        properties*: TableRef[string, Property]
-
-    # A property on a node.
-    # Each property may be any Lilt value, e.g. text, a node, or a list of nodes
-    Property* = object
-        case kind*: LiltType
-        of ltText:
-            text*: string
-        of ltNode:
-            node*: Node
-        of ltList:
-            # Children
-            list*: seq[Node]
+        # TODO Should be immutable?
+        properties*: TableRef[string, LiltValue]
 
 
     #[
@@ -51,74 +49,52 @@ type
         C) Mutates the current lambdaState
         or D) Fails, raising a RuleError.
     ]#
-    # TODO are mutations gonna work weird with failing optionals? lambdaState should
-    # probably be immutable as well
-    # TODO: Implement LiltValue then
-    #       replace RuleVal with tuple[head: int, state: LambdaState, val: Option[LiltValue]]
-    Rule* = proc(head: int, text: string, lambdaState: LambdaState): RuleVal
+    Rule* = proc(head: int, text: string, lambdaState: LiltValue): RuleVal
     RuleError* = object of Exception
 
-    #[
-    Rules may return any of a LiltType, or nothing
-    ]#
-    RuleReturnType* = enum
-        rrtNone
-        rrtText
-        rrtNode
-        rrtList
-
-    RuleVal* = object of RootObj
+    RuleVal* = object
         head*: int
-        lambdaState*: LambdaState
-
-        case kind*: RuleReturnType:
-        of rrtText:
-            text*: string
-        of rrtNode:
-            node*: Node
-        of rrtList:
-            list*: seq[Node]
-        of rrtNone:
-            discard
-
-    #[
-    Each new reference / run of a definiton's rule makes a new LambdaState.
-    This LambdaState is what the statements in the rule modifies.
-    ]#
-    LambdaState* = object of RootObj
-        case kind*: LiltType
-        of ltText:
-            text*: string
-        of ltNode:
-            node*: Node
-        of ltList:
-            list*: seq[Node]
+        lambdaState*: LiltValue
+        val*: Option[LiltValue]
 
     #[
     The final level of abstraction is that of a Parser, which
-    accepts a bit of code and returns a RuleVal.
+    accepts a bit of code and returns a Lilt value.
+    We know that it can return a lilt value since lambdas never
+    return any ltNone
     ]#
-    Parser* = proc(text: string): RuleVal
+    Parser* = proc(text: string): LiltValue
 
-proc initLambdaState*(kind: LiltType): LambdaState =
+proc `==`(item, other: LiltValue): bool =
+    if item.kind != other.kind:
+        return false
+
+    let kind = item.kind
     case kind:
     of ltText:
-        result = LambdaState(kind: ltText, text: "")
+        return item.text == other.text
+    of ltNode:
+        return item.node == other.node
     of ltList:
-        result = LambdaState(kind: ltList, list: @[])
+        return item.list == other.list
+
+proc initLiltValue*(kind: LiltType): LiltValue =
+    case kind:
+    of ltText:
+        result = LiltValue(kind: ltText, text: "")
+    of ltList:
+        result = LiltValue(kind: ltList, list: @[])
     of ltNode:
         # The kind will be added in the top-leve sequence
-        result = LambdaState(kind: ltNode, node: Node(kind: "", properties: newTable[string, Property]()))
+        result = LiltValue(kind: ltNode, node: Node(kind: "", properties: newTable[string, LiltValue]()))
     else:
         assert false
 
-proc toLiltType*(rrt: RuleReturnType): LiltType =
-    case rrt:
-    of rrtNone:
-        raise newException(ValueError, "Value cannot be rrtNone.")
-    of rrtText:
-        return ltText
-    of rrtNode:
-        return ltNode
-    of rrtList:
-        return ltList
+proc initLiltValue*(text: string): LiltValue =
+    return LiltValue(kind: ltText, text: text)
+
+proc initLiltValue*(node: Node): LiltValue =
+    return LiltValue(kind: ltNode, node: node)
+
+proc initLiltValue*(list: seq[Node]): LiltValue =
+    return LiltValue(kind: ltList, list: list)

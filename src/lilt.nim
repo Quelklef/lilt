@@ -10,7 +10,12 @@ import lilt/private/parse
 import lilt/private/types
 import lilt/private/interpret
 
-proc makeParsers*(code: string, consumeAll=true): Table[string, proc(text: string): RuleVal] =
+export base.Parser
+export base.LiltValue
+export base.LiltType
+export base.RuleError
+
+proc makeParsers*(code: string, consumeAll=true): Table[string, Parser] =
     let ast = parse.parseProgram(code)
     types.preprocess(ast)
     let parsers = interpret.programToContext(ast, consumeAll)

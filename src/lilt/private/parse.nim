@@ -2,6 +2,7 @@
 import strutils
 import tables
 import macros
+import options
 
 import outer_ast
 import strfix
