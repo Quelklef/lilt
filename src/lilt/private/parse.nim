@@ -17,14 +17,7 @@ import sequtils
 
 let liltParserAst = outer_ast.newProgram(@[
     # TODO: These are the builtins, since builtins aren't playing nice with types.nim
-      "_" := * <>" \t\n\c\l"
-
-    , "alpha" := <>"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    , "digit" := <>"1234567890"
-    , "alphanum" := |[ @"alpha", @"digit" ]
-    , "any" := |[ @"alphanum", <>"`!@#$%^&*()-=_+~;:'\"<>,.?/|\\", @"_" ]  # TODO: BAD!
-
-    , "identifier" := ~[ + @"alphanum" ]
+      "identifier" := ~[ + @"alphanum" ]
 
     # TODO: Allow for lambda to contain singleton.
     # as in: `.= % ~[ * ~[ ... ]]` should just be `.= % * ~[ ... ]`

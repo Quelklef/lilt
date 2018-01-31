@@ -30,4 +30,4 @@ proc `[]`*(s: string, i: int): char =
         raise newException(IndexError, "$0 is out of bounds." % $i)
     return s[i]
 
-# `[]=` and `[](slice)` are not used, and need not be considered.
+# Careful using [slice] and [slice]=

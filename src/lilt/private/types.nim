@@ -18,6 +18,7 @@ import tables
 import base
 import outer_ast
 import misc
+import builtins
 
 type TypeError* = object of Exception
 type ReferenceError* = object of Exception
@@ -108,25 +109,34 @@ method inferReturnType(opt: Optional, known: Known): RuleReturnType =
         return opt.inner.returnType
 
 method canBeInferred(re: Reference, known: Known): bool =
-    # TODO: Doesn't work with builtins
     let definitions = re.ancestors
         .findOf(Program)
         .descendants.filterOf(Definition)
 
-    if re.id notin definitions.mapIt(it.id):
+    let inDefinitions = re.id in definitions.mapIt(it.id)
+    let inBuiltins = re.id in liltBuiltins
+
+    if (not inDefinitions) and (not inBuiltins):
         raise newException(ReferenceError, "No rule named '$1'." % re.id) 
 
-    return definitions
-        .findIt(it.id == re.id)
-        .body in known
+    if inDefinitions:
+        return definitions
+            .findIt(it.id == re.id)
+            .body in known
+    if inBuiltins:
+        return true  # Since all builtins' return types are known
 method inferReturnType(re: Reference, known: Known): RuleReturnType =
-    # TODO: Doesn't work with builtins
-    return re.ancestors
-        .findOf(Program)
-        .descendants
-        .filterOf(Definition)
-        .findIt(it.id == re.id)
-        .body.returnType
+    let inBuiltins = re.id in liltBuiltins
+
+    if not inBuiltins:
+        return re.ancestors
+            .findOf(Program)
+            .descendants
+            .filterOf(Definition)
+            .findIt(it.id == re.id)
+            .body.returnType
+    else:
+        return liltBuiltins[re.id].rrt
 
 method canBeInferred(choice: Choice, known: Known): bool =
     return choice.children.allIt(it in known)

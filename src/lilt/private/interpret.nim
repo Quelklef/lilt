@@ -22,6 +22,7 @@ import strfix
 import types
 import base
 import misc
+import builtins
 
 proc toProperty(rv: RuleVal): inner_ast.Property =
     case rv.kind:
@@ -124,7 +125,10 @@ else:
 
     proc debugWrap(rule: Rule, node: ONode): Rule =
         proc wrappedRule(head: int, text: string, lambdaState: LambdaState): RuleVal =
-            debugPush("Attempting to match $1" % $node)
+            const snippetSize = 15
+            # Documentation of this line is left as an excersize for the reader:
+            let textSnippet = text[max(0, head - snippetSize) .. head - 1] & "[" & text[head] & "]" & text[head + 1 .. min(text.len, head + snippetSize)]
+            debugPush("Attempting to match `$1` to `$2`" % [textSnippet, node.toLilt])
             try:
                 result = rule(head, text, lambdaState)
             except RuleError as e:
@@ -141,42 +145,13 @@ type WrongTypeError = object of Exception
 method translate(node: ONode, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
-let emptyContext = newTable[string, Rule]()
-
-template toRule[T](s: set[T]): Rule =
-    translate(newSet(s), emptyContext)
-
-let builtins = {
-    "newline": translate(
-        newOptional(newOnePlus(
-            newSet("\r\l")
-        )),
-        emptyContext
-    ),
-    "whitespace": strutils.Whitespace.toRule,
-    "_": translate(
-        newOptional(newOnePlus(
-            newSet(strutils.Whitespace)
-        )),
-        emptyContext
-    ),
-    "any": Rule(proc(head: int, text: string, lambdaState: LambdaState): RuleVal =
-        return (head + 1, lambdaState)
-    ),
-    "lower": {'a' .. 'z'}.toRule,
-    "upper": {'A' .. 'Z'}.toRule,
-    "alpha": strutils.Letters.toRule,
-    "digit": strutils.Digits.toRule,
-    "alphanum": toRule(strutils.Letters + strutils.Digits),
-}.newTable
-
 method translate(re: Reference, context: LiltContext): Rule =
     proc rule(head: int, text: string, lambdaState: LambdaState): RuleVal =
         # Creating new lambda states is handled in the translate(Lambda) code
         if re.id in context:
             return context[re.id](head, text, lambdaState)
         else:
-            return builtins[re.id](head, text, lambdaState)
+            return liltBuiltins[re.id].rule(head, text, lambdaState)
 
     return debugWrap(rule, re)
 
