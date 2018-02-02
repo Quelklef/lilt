@@ -21,9 +21,9 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
     # `d` as in "dead space"
     , "d" := * |[ @"whitespace", @"comment" ]
 
-    , "identifier" := ~[ + @"alphanum" ]
+    , "identifier" :=  ( + @"alphanum" )
 
-    , "program"    := ~[ "definitions" .= % ~[ * ~[ @"d", & @"definition" ] ], @"d" ]
+    , "program"    := ~[ "definitions" .= % * ~[ @"d", & @"definition" ], @"d" ]
     , "definition" := ~[ "id" .= @"identifier" , @"d", ^":", @"_", "body" .= @"body" ]
 
     , "body" := |[

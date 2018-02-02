@@ -18,6 +18,7 @@ import base
 import outer_ast
 import misc
 import builtins
+import debug
 
 type TypeError* = object of Exception
 type ReferenceError* = object of Exception
@@ -154,37 +155,26 @@ method inferReturnType(choice: Choice, known: Known): Option[LiltType] =
 
 method canBeInferred(lamb: Lambda, known: Known): bool =
     let body = lamb.body
-    return body of Sequence or
-        body of Choice and body in known or
-        body of Adjoinment or body of outer_ast.Property or body of Extension or
+    return body of Choice and body in known or
+        body.scoped.anyIt(it of Adjoinment or it of outer_ast.Property or it of Extension) or
         body in known
 proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): Option[LiltType] =
     # Semantically meaningless; helper for inferReturnType
-    if lamb.body of Sequence:
-        for node in lamb.scoped:
-            if node of Adjoinment:
-                return some(ltText)
-            elif node of outer_ast.Property:
-                return some(ltNode)
-            elif node of Extension:
-                return some(ltList)
-        return some(ltText)
-
-    elif lamb.body of Choice:
+    if lamb.body of Choice:
         return lamb.body.returnType
 
-    elif lamb.body of Adjoinment:
-        return some(ltText)
-    elif lamb.body of outer_ast.Property:
-        return some(ltNode)
-    elif lamb.body of Extension:
-        return some(ltList)
-
-    else:
-        if lamb.body.returnType == none(LiltType):
+    for node in lamb.scoped:
+        if node of Adjoinment:
             return some(ltText)
-        else:
-            return lamb.body.returnType
+        elif node of outer_ast.Property:
+            return some(ltNode)
+        elif node of Extension:
+            return some(ltList)
+
+    if lamb.body.returnType == none(LiltType):
+        return some(ltText)
+    else:
+        return lamb.body.returnType
 method inferReturnType(lamb: Lambda, known: Known): Option[LiltType] =
     result = inferReturnTypeUnsafe(lamb, known)
 
@@ -219,6 +209,10 @@ proc inferReturnTypes(ast: ONode) =
 
     if toInfer.len > 0:
         raise newException(TypeError, "Unable to infer all types.")
+
+    when doDebug:
+        echo "Type inference complete:"
+        echo $$ast
 
 proc setLambdaReturnKinds(node: ONode) =
     ## Sets the return kind of all top-level lambdas

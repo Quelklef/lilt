@@ -24,6 +24,7 @@ import types
 import base
 import misc
 import builtins
+import debug
 
 proc hls(rv: RuleVal): (int, LiltValue) =
     # No semantic meaning, exists only to make code terser
@@ -75,7 +76,6 @@ converter toRuleVal(retVal: (int, Option[LiltValue], LiltValue)): RuleVal =
 
 type LiltContext* = TableRef[string, Rule]
 
-const doDebug = false
 when not doDebug:
     template debugWrap(rule: Rule, node: ONode): Rule =
         rule
@@ -105,7 +105,7 @@ else:
             except RuleError as e:
                 debugPop("Failed: " & e.msg)
                 raise e
-            assert result.kind == node.returnType
+
             debugPop("Success, head now: " & $result.head)
             return result
         return wrappedRule
