@@ -340,7 +340,7 @@ proc toParser(rule: Rule, returnType: LiltType): Parser =
     return proc(text: string): LiltValue =
         let res = rule(0, text, initLiltValue(returnType))
         if res.head != text.len:
-            raise newException(ValueError, "Unconsumed code leftover")  # TODO better exception??
+            raise newException(ValueError, "Unconsumed code leftover, head ended at $1 but text length is $2." % [$res.head, $text.len])  # TODO better exception??
         return res.val.get
 
 proc programToContext*(ast: Program): Table[string, Parser] =
