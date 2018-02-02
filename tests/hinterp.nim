@@ -9,7 +9,7 @@ import lilt
 
 proc test(code: string, ruleName: string, input: string, expected: Node) =
     # Test must expect a node, not a list or code.
-    let parsers = lilt.makeParsers(code, consumeAll=false)
+    let parsers = lilt.makeParsers(code)
     let res = parsers[ruleName](input).node
 
     if res != expected:

@@ -335,19 +335,15 @@ method translate(e: Extension, context: LiltContext): Rule =
 
 #~# Exposed API #~#
 
-proc toParser(rule: Rule, returnType: LiltType, consumeAll=true): Parser =
+proc toParser(rule: Rule, returnType: LiltType): Parser =
     ## If `consumeall` is false, will not raise an error if rule doesn't fully consume code
-    if consumeall:
-        return proc(text: string): LiltValue =
-            let res = rule(0, text, initLiltValue(returnType))
-            if res.head != text.len:
-                raise newException(ValueError, "Unconsumed code leftover")  # TODO better exception??
-            return res.val.get
-    else:
-        return proc(text: string): LiltValue =
-            return rule(0, text, initLiltValue(returnType)).val.get
+    return proc(text: string): LiltValue =
+        let res = rule(0, text, initLiltValue(returnType))
+        if res.head != text.len:
+            raise newException(ValueError, "Unconsumed code leftover")  # TODO better exception??
+        return res.val.get
 
-proc programToContext*(ast: Program, consumeAll=true): Table[string, Parser] =
+proc programToContext*(ast: Program): Table[string, Parser] =
     ## Translates a (preprocessed) program to a table of definitions
     var liltContext = newTable[string, Rule]()
     var resultTable = initTable[string, Parser]()
@@ -355,5 +351,5 @@ proc programToContext*(ast: Program, consumeAll=true): Table[string, Parser] =
         let id = definition.id
         let rule = translate(definition.body, liltContext)
         liltContext[id] = rule
-        resultTable[id] = toParser(rule, ast.findDefinition(id).returnType.get, consumeAll)
+        resultTable[id] = toParser(rule, ast.findDefinition(id).returnType.get)
     return resultTable

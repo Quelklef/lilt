@@ -5,7 +5,7 @@ test(
     """
     alpha: <abcdefghijklmnopqrstuvwxyz>
     consonant: !<aeiou> $alpha
-    consoWord: letters=*consonant
+    consoWord: letters=*consonant *any
     """,
     "consoWord",
     "bhjdsjkeaklj",

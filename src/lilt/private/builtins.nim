@@ -43,7 +43,7 @@ let liltBuiltins*: TableRef[string, Builtin] = {
     "newline": {'\l', '\c'}.toMultiRule(1),
     "whitespace": strutils.Whitespace.toSingleRule,
     "_": strutils.Whitespace.toMultiRule,
-    "any": strutils.AllChars.toSingleRule,
+    "any": (strutils.AllChars - {'\0'}).toSingleRule,
     "lower": {'a' .. 'z'}.toSingleRule,
     "upper": {'A' .. 'Z'}.toSingleRule,
     "alpha": strutils.Letters.toSingleRule,

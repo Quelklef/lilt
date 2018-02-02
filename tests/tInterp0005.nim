@@ -7,7 +7,7 @@ test(
     letter: <abcdefghijklmnopqrstuvwxyz>
     alphanumeric: digit | letter
     anstring: *alphanumeric
-    annode: val=anstring
+    annode: val=anstring *any
     """,
     "annode",
     "qwnjgib2723t99 12h8t9",

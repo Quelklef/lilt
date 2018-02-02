@@ -5,7 +5,7 @@ test(
     """
     vowel: <aeiou>
     vowels: *$vowel
-    nVowels: val=vowels
+    nVowels: val=vowels *any
     """,
     "nVowels",
     "aeeoouuiaobbbbboisoso",

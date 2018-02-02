@@ -33,7 +33,7 @@ Builtins
 ================================ ===================================================================
 Name                             Description or equivalent code
 ================================ ===================================================================
-:code:`any`                      Matches any single character
+:code:`any`                      Matches any single character except :code:`\0`
 :code:`newline`                  :code:`+<\c\l>`. Use in lieu of :code:`\n`, which doesn't exist.
 :code:`whitespace`               Matches any single whitespace character
 :code:`_`                        :code:`*whitespace`

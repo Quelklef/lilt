@@ -15,10 +15,10 @@ export base.LiltValue
 export base.LiltType
 export base.RuleError
 
-proc makeParsers*(code: string, consumeAll=true): Table[string, Parser] =
+proc makeParsers*(code: string): Table[string, Parser] =
     let ast = parse.parseProgram(code)
     types.preprocess(ast)
-    let parsers = interpret.programToContext(ast, consumeAll)
+    let parsers = interpret.programToContext(ast)
 
     return parsers
 

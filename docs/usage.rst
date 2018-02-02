@@ -30,11 +30,9 @@ The returned value may be text, a node, or a list of nodes. This is encoded in t
 
 In order to create parsers, one should use the included `makeParsers` proc, which looks like::
 
-    proc makeParsers*(code: string, consumeAll=true): Table[string, Parser]
+    proc makeParsers*(code: string): Table[string, Parser]
 
 It accepts a Lilt specification (:code:`code`), and returns all of the defined rules in that specification as a table mapping `string`s to `Parser`s.
-
-If :code:`consumeAll` is :code:`true`, then parsers will throw a :code:`ValueError` if they complete before consuming all text. For instance :code:`banana: "banana"` fed "banana and more". If :code:`consumeAll` is :code:`false`, no error will be thrown, and the generated :code:`LiltValue` will be returned (in this case, :code:`LiltValue(kind: ltText, text: "banana")`).
 
 For your convenience, three :code:`LiltValue` initializers have also been included::
 
