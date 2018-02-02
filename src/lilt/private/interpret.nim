@@ -107,13 +107,49 @@ type WrongTypeError = object of Exception
 method translate(node: ONode, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
+
+proc deference(id: string, context: LiltContext): Rule =
+    if id in context:
+        return context[id]
+    else:
+        return liltBuiltins[id].rule
+
 method translate(re: Reference, context: LiltContext): Rule =
-    proc rule(head: int, text: string, lambdaState: LiltValue): RuleVal =
-        # Creating new lambda states is handled in the translate(Lambda) code
-        if re.id in context:
-            return context[re.id](head, text, lambdaState)
+    var rule: proc(head: int, text: string, lambdaState: LiltValue): RuleVal
+
+    #[
+    This method is slightly more complicated than you may think it should be
+    This is so that it can support two contradictory behaviours:
+        1) That a rule may refer to an undefined rule
+            In order to do this, we need to defer the reference till runtime
+        2) That a rule may define itself in a sequential manner based on existing rules
+            For instance:
+                rule: <abc>
+                rule_: rule
+                rule: "something" rule_
+            We'd expect the resultant `rule` to be equivalent to `"something" <abc>`.
+            In order to do this, we need to get the value of `rule_` before runtime,
+            right now.
+    In order to allow for both of these behaviors, we adapt the following rules:
+        1) If the reference is currently defined, find it now
+        2) Otherwise, defer to runtime
+    ]#
+
+    let referenceKnownNow = re.id in context or re.id in liltBuiltins
+
+    when doDebug:
+        if referenceKnownNow:
+            echo "Reference '$1' found immediately." % re.id
         else:
-            return liltBuiltins[re.id].rule(head, text, lambdaState)
+            echo "Reference '$1' defered to runtime." % re.id
+
+    if referenceKnownNow:
+        let reference = deference(re.id, context)
+        rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
+            return reference(head, text, lambdaState)
+    else:
+        rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
+            return deference(re.id, context)(head, text, lambdaState)
 
     return debugWrap(rule, re)
 
@@ -345,7 +381,7 @@ proc toParser(rule: Rule, returnType: LiltType): Parser =
 
 proc programToContext*(ast: Program): Table[string, Parser] =
     ## Translates a (preprocessed) program to a table of definitions
-    var liltContext = newTable[string, Rule]()
+    let liltContext = newTable[string, Rule]()
     var resultTable = initTable[string, Parser]()
     for definition in ast.definitions.mapIt(it.Definition):
         let id = definition.id

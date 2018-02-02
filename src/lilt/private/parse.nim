@@ -20,8 +20,10 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
 
     # `d` as in "dead space"
     , "d" := * |[ @"whitespace", @"comment" ]
+    # Modified deadspace which doesn't allow for newlines
+    , "md" := * |[ ~[ ! @"newline", @"whitespace" ], @"comment" ]
 
-    , "identifier" :=  ( + @"alphanum" )
+    , "identifier" :=  ( + |[ @"alphanum", <>"_" ] )
 
     , "program"    %= ~[ "definitions" .= % * ~[ @"d", & @"definition" ], @"d" ]
     , "definition" %= ~[ "id" .= @"identifier" , @"d", ^":", @"d", "body" .= @"body" ]
@@ -32,8 +34,12 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
         , @"expression"
     ]
 
-    #                                                         TODO dotspace
-    , "sequence" %= ~[ "contents" .= % ~[ & @"expression", + ~[ * |[ <>" \t", @"comment" ], & @"expression" ] ] ]
+    # Use modified deadspace so that sequences won't consume the identifier of a rule coming after them,
+    # e.g.
+    # rule1: a b c
+    # rule2: d e f
+    # is parsed as rule1: [a b c] rule2: [d e f] rather than rule1: [a b c d]
+    , "sequence" %= ~[ "contents" .= % ~[ & @"expression", + ~[ @"md", & @"expression" ] ] ]
     , "choice"   %= ~[ "contents" .= % ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
 
     , "expression" := |[
