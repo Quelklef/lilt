@@ -6,4 +6,4 @@ test(
     newProgram(@[
         "lambTest" := % <>"a"
     ])
-)
+, skipValidation=true)

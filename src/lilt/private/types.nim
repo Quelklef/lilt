@@ -20,11 +20,14 @@ import misc
 import builtins
 import debug
 
-type TypeError* = object of Exception
-type ReferenceError* = object of Exception
+type SemanticError* = object of Exception
+type TypeError* = object of SemanticError
+type ReferenceError* = object of SemanticError
 
 # TODO: Switch to hashset
 type Known = seq[ONode]
+
+proc mutates*(node: ONode): bool
 
 method inferReturnType(node: ONode, known: Known): Option[LiltType] {.base.} =
     raise new(BaseError)
@@ -145,7 +148,7 @@ method inferReturnType(choice: Choice, known: Known): Option[LiltType] =
     let innerTypes = choice.contents.mapIt(it.returnType)
 
     if not allSame(innerTypes):
-        raise newException(TypeError, "Choice must be homogenous. Node '$1' got types: $2" % [$choice, $innerTypes])
+        raise newException(TypeError, "Choice must be homogenous. Node '$1' got types: $2" % [choice.toLilt, $innerTypes])
 
     let allTypes = innerTypes[0]  # Type of all inner nodes
     if allTypes == none(LiltType):
@@ -154,10 +157,7 @@ method inferReturnType(choice: Choice, known: Known): Option[LiltType] =
     return allTypes
 
 method canBeInferred(lamb: Lambda, known: Known): bool =
-    let body = lamb.body
-    return body of Choice and body in known or
-        body.scoped.anyIt(it of Adjoinment or it of outer_ast.Property or it of Extension) or
-        body in known
+    return lamb.body.mutates or lamb.body in known
 proc inferReturnTypeUnsafe(lamb: Lambda, known: Known): Option[LiltType] =
     # Semantically meaningless; helper for inferReturnType
     if lamb.body of Choice:
@@ -182,8 +182,6 @@ method inferReturnType(lamb: Lambda, known: Known): Option[LiltType] =
         let isTopLevel = lamb.parent of Definition
         if not isTopLevel:
             raise newException(TypeError, "Only top-level Lambdas may return nodes.")
-
-#~# Exposed API #~#
 
 proc inferReturnTypes(ast: ONode) =
     var toInfer = concat(ast.layers)
@@ -214,14 +212,38 @@ proc inferReturnTypes(ast: ONode) =
         echo "Type inference complete:"
         echo $$ast
 
-proc setLambdaReturnKinds(node: ONode) =
+proc setLambdaReturnTypes(node: ONode) =
     ## Sets the return kind of all top-level lambdas
     for lamb in node.descendants.filterOf(Lambda):
         if lamb.parent of Definition:
             lamb.returnNodeKind = lamb.parent.Definition.id
 
+proc checkTopLevelLambdas(node: ONode) =
+    ## Throws an error if any definitions' body mutated but is not in a lambda
+    ## Throws an error if any top-level lambdas are redundant
+    for def in node.descendants.filterOf(Definition):
+        let mutates = def.body.mutates
+        if def.body of Lambda:
+            if not mutates:
+                raise newException(SemanticError, "Definition '$1' contains a reduntant top-level lambda." % def.id)
+        else:
+            if mutates:
+                raise newException(SemanticError, "Definition '$1' contains mutations but not a top-level lambda." % def.id)
+
+#~# Exposed API #~#
+
+proc mutates*(node: ONode): bool =
+    ## Returns whether a node is an adjoinment, property, or extension or
+    ## contains a scoped adjoinment, property, or extension
+    ## Be careful! This will return `false` for a definition which mutates.
+    result = node.scoped2.anyIt(it of Adjoinment or it of outer_ast.Property or it of Extension)
+
 proc preprocess*(ast: ONode) =
-    ## Infers the return types of the AST,
-    ## then sets the return kinds of all Lambdas
+    ## Infers the return types of the AST, then sets the return kinds of all Lambdas
     inferReturnTypes(ast)
-    setLambdaReturnKinds(ast)
+    setLambdaReturnTypes(ast)
+
+proc validateSemantics*(ast: ONode) =
+    ## TODO: Should warn, not error
+    ## Throws an error if any mutating definitions' bodies are not lambdas
+    checkTopLevelLambdas(ast)

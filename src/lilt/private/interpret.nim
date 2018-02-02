@@ -30,15 +30,6 @@ proc hls(rv: RuleVal): (int, LiltValue) =
     # No semantic meaning, exists only to make code terser
     return (rv.head, rv.lambdaState)
 
-proc `$`(s: seq[inner_ast.Node]): string =
-    result = "@["
-    var firstItem = true
-    for node in s:
-        if not firstItem: result &= ", "
-        result &= $node
-        firstItem = false
-    result &= "]"
-
 converter toRuleVal(retVal: (int, string, LiltValue)): RuleVal =
     return RuleVal(
         head: retVal[0],

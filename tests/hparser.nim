@@ -5,8 +5,14 @@ import lilt/private/quick
 
 import strutils
 
-template test(code: string, expected: ONode) =
-    let parsed = parseProgram(code)
+template test(code: string, expected: ONode, skipValidation=false) =
+    var parsed: ONode
+
+    if not skipValidation:
+        parsed = parseProgram(code)
+    else:
+        parsed = parseProgramNoValidation(code)
+
     if not equiv(parsed, expected):
         echo "Failed; expected ast:"
         echo $$expected

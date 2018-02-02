@@ -408,8 +408,13 @@ proc equiv*(node: ONode, other: ONode): bool =
     ## Not `==` because `==` is for identity.
     ## NOTE: This does not verifiy that the two ONodes' have matching
     ## return type. This is intentional.
-    return node of other.type and other of ONode.type and  # Ensure of same type
-        node.textProps == other.textProps and
+    
+    # TODO: Apparently the following line is always true,
+    # which means it's not working properly
+    # We need to do type checking somehow
+    #return node of other.type and other of ONode.type and  # Ensure of same type
+    
+    return node.textProps == other.textProps and
         equiv[string, ONode](node.nodeProps, other.nodeProps) and
         equiv[string, seq[ONode]](node.listProps, other.listProps)
 
@@ -479,6 +484,13 @@ proc scoped*(node: ONode): seq[ONode] =
         if currentNode.isBranch and not (currentNode of Lambda):
             result.extend(currentNode.children)
         inc(head)
+
+# TODO: make the name not shitty
+proc scoped2*(node: ONode): seq[ONode] =
+    ## Returns node.scoped prepended by node
+    result = @[node]
+    for sc in node.scoped:
+        result.add(sc)
  
 proc findDefinition*(ast: ONode, id: string): ONode =
     ## Returns the definition with the given identifier

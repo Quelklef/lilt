@@ -8,11 +8,10 @@ that is, the AST used when _running_ Lilt code.
 import tables
 import strutils
 import sequtils
+import json
 
 import misc
 import base
-
-import json
 
 export base
 

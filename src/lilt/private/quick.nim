@@ -5,7 +5,8 @@ Implements a bunch of templates and macros for nicely making an outer ast
 
 import outer_ast
 
-template `:=`*(id: string, body: ONode): ONode = newDefinition(id, newLambda(body))
+template `:=`*(id: string, body: ONode): ONode = newDefinition(id, body)
+template `%=`*(id: string, body: ONode): ONode = newDefinition(id, newLambda(body))
 
 template `%`*(body: ONode): ONode = newLambda(body)
 

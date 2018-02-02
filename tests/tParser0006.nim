@@ -6,6 +6,6 @@ test(
     handleString: "'" $*char "'"
     """,
     newProgram(@[
-        "handleString" := ~[ ^"'", $: * @"char", ^"'" ]
+        "handleString" %= ~[ ^"'", $: * @"char", ^"'" ]
     ])
 )

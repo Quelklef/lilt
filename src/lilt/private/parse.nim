@@ -14,8 +14,8 @@ import sequtils
 import types
 
 let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added to allow for a `,` in front of EVERY line after
-    , "lineComment"   := ~[ ^"/", $: ^"", * ~[ ! @"newline", @"any" ] ]  # $: ^"" included so always returns ""
-    , "blockComment"  := ~[ ^"((", $: ^"", * ~[ ! ^"))", @"any" ], ^"))" ]
+    , "lineComment"   %= ~[ ^"/", $: ^"", * ~[ ! @"newline", @"any" ] ]  # $: ^"" included so always returns ""
+    , "blockComment"  %= ~[ ^"((", $: ^"", * ~[ ! ^"))", @"any" ], ^"))" ]
     , "comment"       := |[ @"lineComment", @"blockComment" ]
 
     # `d` as in "dead space"
@@ -23,8 +23,8 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
 
     , "identifier" :=  ( + @"alphanum" )
 
-    , "program"    := ~[ "definitions" .= % * ~[ @"d", & @"definition" ], @"d" ]
-    , "definition" := ~[ "id" .= @"identifier" , @"d", ^":", @"_", "body" .= @"body" ]
+    , "program"    %= ~[ "definitions" .= % * ~[ @"d", & @"definition" ], @"d" ]
+    , "definition" %= ~[ "id" .= @"identifier" , @"d", ^":", @"d", "body" .= @"body" ]
 
     , "body" := |[
           @"sequence"
@@ -33,8 +33,8 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
     ]
 
     #                                                         TODO dotspace
-    , "sequence" := ~[ "contents" .= % ~[ & @"expression", + ~[ * |[ <>" \t", @"comment" ], & @"expression" ] ] ]
-    , "choice"   := ~[ "contents" .= % ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
+    , "sequence" %= ~[ "contents" .= % ~[ & @"expression", + ~[ * |[ <>" \t", @"comment" ], & @"expression" ] ] ]
+    , "choice"   %= ~[ "contents" .= % ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
 
     , "expression" := |[
           @"property"  # Must go before reference because both begin with an identifier
@@ -60,31 +60,31 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
         , ~[ @"escapeChar", <>"\\trclabe" ]  # A blackslash followed by one of: \trclabe
     ]
 
-    , "reference"   :=  ( "id" .= @"identifier" )
+    , "reference"   %=  ( "id" .= @"identifier" )
 
     , "literalChar" := |[
           ~[ @"escapeChar", ^"\"" ]  # \" OR
         , ~[ ! ^"\"", @"maybeEscapedChar" ]  # a non-" normally-behaving char
     ]
-    , "literal"     := ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]
+    , "literal"     %= ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]
 
     , "setChar"     := |[
           ~[ @"escapeChar", ^">" ]  # \> OR
         , ~[ ! ^">", @"maybeEscapedChar" ]  # a non-> normally-behaving char
     ]
-    , "set"         := ~[ ^"<", "charset" .= * @"setChar", ^">" ]
+    , "set"         %= ~[ ^"<", "charset" .= * @"setChar", ^">" ]
 
-    , "optional"    := ~[ ^"?", "inner" .= @"expression" ]
-    , "oneplus"     := ~[ ^"+", "inner" .= @"expression" ]
-    , "zeroplus"    := ~[ ^"*", "inner" .= @"expression" ]
-    , "guard"       := ~[ ^"!", "inner" .= @"expression" ]
+    , "optional"    %= ~[ ^"?", "inner" .= @"expression" ]
+    , "oneplus"     %= ~[ ^"+", "inner" .= @"expression" ]
+    , "zeroplus"    %= ~[ ^"*", "inner" .= @"expression" ]
+    , "guard"       %= ~[ ^"!", "inner" .= @"expression" ]
 
-    , "adjoinment"  := ~[ ^"$", "inner" .= @"expression" ]
-    , "property"    := ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
-    , "extension"   := ~[ ^"&", "inner" .= @"expression" ]
+    , "adjoinment"  %= ~[ ^"$", "inner" .= @"expression" ]
+    , "property"    %= ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
+    , "extension"   %= ~[ ^"&", "inner" .= @"expression" ]
 
-    , "brackets"    := ~[ ^"[", @"d", "body" .= @"body", @"d", ^"]" ]
-    , "lambda"      := ~[ ^"{", @"d", "body" .= @"body", @"d", ^"}" ]
+    , "brackets"    %= ~[ ^"[", @"d", "body" .= @"body", @"d", ^"]" ]
+    , "lambda"      %= ~[ ^"{", @"d", "body" .= @"body", @"d", ^"}" ]
 ])
 
 types.preprocess(liltParserAst)
@@ -94,7 +94,12 @@ let programParser = parsers["program"]
 proc toOuterAst(node: inner_ast.Node): ONode
 
 proc parseProgram*(code: string): Program =
-    return  programParser(code).node.toOuterAst.Program
+    result = programParser(code).node.toOuterAst.Program
+    validateSemantics(result)
+
+proc parseProgramNoValidation*(code: string): Program =
+    ## Super ugly naming because it's used once in the entire codebase
+    return programParser(code).node.toOuterAst.Program
 
 proc unescape(s: string): string =
     # Maps escape codes to values
@@ -116,7 +121,12 @@ proc toOuterAst(node: inner_ast.Node): ONode =
     of "program":
         return newProgram(node["definitions"].list.mapIt(it.toOuterAst))
     of "definition":
-        return newDefinition(node["id"].text, newLambda(node["body"].node.toOuterAst))
+        var body = node["body"].node.toOuterAst
+        # TODO: This logic should be elsewhere
+        # Wrap body in lambda if it's needed (iff it mutates)
+        if body.mutates:
+            body = newLambda(body)
+        return newDefinition(node["id"].text, body)
     of "sequence":
         return newSequence(node["contents"].list.mapIt(it.toOuterAst))
     of "choice":
