@@ -1,0 +1,24 @@
+
+/ Whitespace no newlines
+__: !newline _
+
+identifier: alpha *alphanum
+
+typedArg: name=identifier __ ":" __ type=identifier
+
+lambda: args={ +[&typedArg __] } ":" body=expression
+
+expression:
+    | lambda
+    | literal
+
+literal:
+    | charLiteral
+    | strLiteral
+    | numberLiteral
+
+charLiteral: "'" text=any
+strLiteral: "\"" text=*any "\""
+
+/ We allow underscores in number literals for readability
+numberLiteral: text={ *[$digit ?"_"] }
