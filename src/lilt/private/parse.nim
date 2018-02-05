@@ -70,7 +70,7 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
         , ~[ @"escapeChar", <>"\\trclabe" ]  # A blackslash followed by one of: \trclabe
     ]
 
-    , "reference"   %=  ( "id" .= @"identifier" )
+    , "reference" %= ( "id" .= @"identifier" )
 
     , "doubleQuoteLiteralChar" := |[
           ~[ @"escapeChar", ^"\"" ]  # \" OR
@@ -127,8 +127,10 @@ proc parseBody*(code: string): ONode =
 proc unescape(s: string): string =
     # Maps escape codes to values
     return s.multiReplace({
+        "\\'": "'",
         "\\\"": "\"",
         "\\>": ">",
+
         "\\t": "\t",
         "\\r": "\r",
         "\\c": "\c",
