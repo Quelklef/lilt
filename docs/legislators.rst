@@ -44,7 +44,7 @@ Choice
 
 Choice legislators are also comprised of several rules. Choices return the return value of the first contained rule which matches the given text. The matching rule will also consume code, and possibly mutate the current state.
 
-Choices are comprised of a sequence of rules, each separated by a pipe (`|`).
+Choices are comprised of a sequence of rules, each separated by a pipe (`|`). Both a leading and a trailing pipe is allowed.
 
 For instance, :code:`"firstname" | "lastname"` matches "firstname" and "lastname" only.
 

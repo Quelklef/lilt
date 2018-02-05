@@ -40,7 +40,11 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
     # rule2: d e f
     # is parsed as rule1: [a b c] rule2: [d e f] rather than rule1: [a b c d]
     , "sequence" %= ~[ "contents" .= % ~[ & @"expression", + ~[ @"md", & @"expression" ] ] ]
-    , "choice"   %= ~[ "contents" .= % ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
+    , "choice"   %= ~[ "contents" .= % ~[
+          ? ~[ ^"|", @"d" ]  # Allow for leading pipe
+        , ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
+        , ? ~[ @"d", ^"|" ]  # Allow for trailing pipe
+    ]
 
     , "expression" := |[
           @"property"  # Must go before reference because both begin with an identifier
