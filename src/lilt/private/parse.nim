@@ -72,11 +72,22 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
 
     , "reference"   %=  ( "id" .= @"identifier" )
 
-    , "literalChar" := |[
+    , "doubleQuoteLiteralChar" := |[
           ~[ @"escapeChar", ^"\"" ]  # \" OR
         , ~[ ! ^"\"", @"maybeEscapedChar" ]  # a non-" normally-behaving char
     ]
-    , "literal"     %= ~[ ^"\"", "text" .= * @"literalChar", ^"\"" ]
+    , "doubleQuoteLiteral" %= ~[ ^"\"", $: * @"doubleQuoteLiteralChar", ^"\"" ]
+
+    , "singleQuoteLiteralChar" := |[
+          ~[ @"escapeChar", ^"'" ]  # \' OR
+        , ~[ ! ^"'", @"maybeEscapedChar" ]  # a non-' normally-behaving char
+    ]
+    , "singleQuoteLiteral" %= ~[ ^"'", $: * @"singleQuoteLiteralChar", ^"'" ]
+
+    , "literal" %= ( "text" .= |[
+          @"doubleQuoteLiteral"
+        , @"singleQuoteLiteral"
+    ] )
 
     , "setChar"     := |[
           ~[ @"escapeChar", ^">" ]  # \> OR
@@ -99,17 +110,19 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
 
 types.preprocess(liltParserAst)
 let parsers: Table[string, Parser] = programToContext(liltParserAst)
-let programParser = parsers["program"]
 
 proc toOuterAst(node: inner_ast.Node): ONode
 
-proc parseProgram*(code: string): Program =
-    result = programParser(code).node.toOuterAst.Program
-    validateSemantics(result)
-
 proc parseProgramNoValidation*(code: string): Program =
     ## Super ugly naming because it's used once in the entire codebase
-    return programParser(code).node.toOuterAst.Program
+    return parsers["program"](code).node.toOuterAst.Program
+
+proc parseProgram*(code: string): Program =
+    result = parseProgramNoValidation(code)
+    validateSemantics(result)
+
+proc parseBody*(code: string): ONode =
+    return parsers["body"](code).node.toOuterAst
 
 proc unescape(s: string): string =
     # Maps escape codes to values

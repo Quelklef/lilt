@@ -379,6 +379,13 @@ proc toParser(rule: Rule, returnType: LiltType): Parser =
             raise newException(ValueError, "Unconsumed code leftover, head ended at $1 but text length is $2." % [$res.head, $text.len])  # TODO better exception??
         return res.val.get
 
+let emptyContext = newTable[string, Rule]()
+proc bodyToParser*(body: ONode): Parser =
+    ## Translates a body to a parser
+    ## The body must be standalone and may only contain references to builtins
+    let returnType = body.returnType.get
+    return toParser(translate(body, emptyContext), returnType)
+
 proc programToContext*(ast: Program): Table[string, Parser] =
     ## Translates a (preprocessed) program to a table of definitions
     let liltContext = newTable[string, Rule]()

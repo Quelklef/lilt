@@ -12,7 +12,7 @@ Literal
 
 One of the simplest legislators is the literal legislator, which returns a rule only matching exactly the given text.
 
-Literal legislators begin and end with a double quote. Inbetween these two double quotes lies the content the resultant rule will match.
+Literal legislators begin and end with a double quote or single quote. Inbetween these two double quotes lies the content the resultant rule will match.
 
 For instance, :code:`"banana"` will match any text beginning with "banana". Matching this text, it will consume 6 characters (the length of the word "banana") and return the text "banana". If the text doesn't start with "banana", the rule will fail.
 
