@@ -1,2 +1,2 @@
 
-const doDebug* = false
+const doDebug* = true

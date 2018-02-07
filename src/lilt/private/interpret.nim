@@ -75,7 +75,7 @@ else:
     var debugDepth = 0
 
     proc debugEcho(msg: string) =
-        echo ".  ".repeat(debugDepth) & msg
+        echo(".  ".repeat(debugDepth) & msg)
 
     proc debugPush(msg: string) =
         debugEcho(msg)
@@ -90,7 +90,9 @@ else:
             const snippetSize = 15
             # Documentation of this line is left as an excersize for the reader:
             let textSnippet = text[max(0, head - snippetSize) .. head - 1] & "[" & text[head] & "]" & text[head + 1 .. min(text.len, head + snippetSize)]
+
             debugPush("Attempting to match `$1` to `$2`" % [strutils.escape(textSnippet, prefix="", suffix=""), node.toLilt])
+
             try:
                 result = rule(head, text, lambdaState)
             except RuleError as e:

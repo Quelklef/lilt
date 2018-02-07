@@ -2,10 +2,18 @@
 include hinterp
 
 #[
-TODO: I think that this is not an issue with the parser itself
-but rather is due to the recursive nature; I believe that this test
-case is working correctly but just naturally stack overflows.
-The parser will need to be rewritten iteratively.
+
+TODO: Fix this.
+
+This issue is a bit suble.
+The issue is that having `addOperation` be the first reference in the
+choice `expr` and having `addOperation` immediately call expr is that
+the parser will infinitely loop.
+However, if `expr` starts with `reference`, then parsing "x + y" with
+`expr` will return `reference` "x" rather than `addOperation` "x + y".
+
+Dunno how to fix this.
+
 ]#
 
 test("""
@@ -20,7 +28,7 @@ test("""
 
     identifier: alpha *alphanum
 
-    expr: intLiteral | addOperation | reference
+    expr: addOperation | reference | intLiteral
 
     reference: target=identifier
     addOperation: leftValue=expr _ "+" _ rightValue=expr
