@@ -1,7 +1,15 @@
 
 include hinterp
 
+#[
+TODO: I think that this is not an issue with the parser itself
+but rather is due to the recursive nature; I believe that this test
+case is working correctly but just naturally stack overflows.
+The parser will need to be rewritten iteratively.
+]#
+
 test("""
+
     prog: statements={ _ *[_ &statement _] _ }
 
     / Implement "return"
@@ -17,13 +25,16 @@ test("""
     reference: target=identifier
     addOperation: leftValue=expr _ "+" _ rightValue=expr
     intLiteral: val=+digit
+    
     """,
     "prog",
     """
+    
     let x = 1;
     let y = 2;
 
     echo(x + y);
+    
     """,
     ~~ {
         "kind": "prog",

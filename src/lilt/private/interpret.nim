@@ -75,7 +75,7 @@ else:
     var debugDepth = 0
 
     proc debugEcho(msg: string) =
-        echo ".   ".repeat(debugDepth) & msg
+        echo ".  ".repeat(debugDepth) & msg
 
     proc debugPush(msg: string) =
         debugEcho(msg)
@@ -137,11 +137,11 @@ method translate(re: Reference, context: LiltContext): Rule =
 
     let referenceKnownNow = re.id in context or re.id in liltBuiltins
 
-    when doDebug:
+    #[ when doDebug:
         if referenceKnownNow:
             echo "Reference '$1' found immediately." % re.id
         else:
-            echo "Reference '$1' defered to runtime." % re.id
+            echo "Reference '$1' defered to runtime." % re.id ]#
 
     if referenceKnownNow:
         let reference = deference(re.id, context)
