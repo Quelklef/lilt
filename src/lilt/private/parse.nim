@@ -55,6 +55,7 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
         , @"oneplus"
         , @"zeroplus"
         , @"guard"
+        , @"result"
         , @"adjoinment"
         , @"extension"
         , @"brackets"
@@ -100,6 +101,7 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
     , "zeroplus"    %= ~[ ^"*", "inner" .= @"expression" ]
     , "guard"       %= ~[ ^"!", "inner" .= @"expression" ]
 
+    , "result"      %= ~[ ^"#", "inner" .= @"expression" ]
     , "adjoinment"  %= ~[ ^"$", "inner" .= @"expression" ]
     , "property"    %= ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
     , "extension"   %= ~[ ^"&", "inner" .= @"expression" ]
@@ -170,6 +172,8 @@ proc toOuterAst(node: inner_ast.Node): ONode =
         return newOptional(newOnePlus(node["inner"].node.toOuterAst))
     of "guard":
         return newGuard(node["inner"].node.toOuterAst)
+    of "result":
+        return newResult(node["inner"].node.toOuterAst)
     of "adjoinment":
         return newAdjoinment(node["inner"].node.toOuterAst)
     of "property":

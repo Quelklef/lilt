@@ -22,6 +22,8 @@ template `?`*(inner: ONode): ONode = newOptional(inner)
 template `*`*(inner: ONode): ONode = newOptional(newOneplus(inner))
 template `!`*(inner: ONode): ONode = newGuard(inner)
 
+# The hash is used in Nim for comments, so the arbitrary "/." is chosen
+template `/.`*(inner: ONode): ONode = newResult(inner)
 # Not `$` as to not conflict with `$` conventions
 template `$:`*(inner: ONode): ONode = newAdjoinment(inner)
 template `.=`*(id: string, inner: ONode): ONode = newProperty(id, inner)

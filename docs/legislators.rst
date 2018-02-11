@@ -108,6 +108,17 @@ Otherwise, the lambda will return the state, which can be text, a node, or a lis
 
 For instance, :code:`{ *&"i" }` applied to "iiii" will return "iiii", just as :code:`*"i"` would. Though effectively the same, the two are semantically different. The former reads like: *zero or more times, append the text "i" to the state, returning it when complete*; the latter reads like: *match zero or more "i"s and return the consumed value*.
 
+Result
+------
+
+Result legislators modify the current state, setting it to the value of the result's inner rule.
+
+Results begin with a :code:`#` and are followed by any rule that doesn't return nothing.
+
+For instance, :code:`_ #"banana" _` will match the text "      banana   ", returning "banana".
+
+Results return nothing and fail when their inner rule fails.
+
 
 Adjoinment
 ----------

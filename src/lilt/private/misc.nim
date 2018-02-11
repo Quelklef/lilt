@@ -65,6 +65,9 @@ template findOf*(sequence, kind: untyped): untyped =
     ## Additionally, convert that item to said type
     kind(sequence.findIt(it of kind))
 
+template anyOf*(sequence, kind: untyped): untyped =
+    sequence.anyIt(it of kind) 
+
 proc asString*(charset: set[char]): string =
     result = ""
     for c in charset:

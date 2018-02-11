@@ -267,6 +267,24 @@ method typeName(g: Guard): string = "Guard"
 method toLilt*(g: Guard): string =
     return "!" & g.inner.toLilt
 
+# Result
+
+type Result* = ref object of ONode
+    inner*: ONode
+
+proc newResult*(inner: ONode): Result =
+    let r = Result(inner: inner)
+    inner.parent = r
+    return r
+
+method nodeProps*(res: Result): auto =
+    return {"inner": res.inner}.toTable
+
+method typeName(res: Result): string = "Result"
+
+method toLilt*(res: Result): string =
+    return "#" & res.inner.toLilt
+
 # Adjoinment
 
 type Adjoinment* = ref object of ONode
@@ -493,7 +511,8 @@ proc scoped2*(node: ONode): seq[ONode] =
         result.add(sc)
  
 proc findDefinition*(ast: ONode, id: string): ONode =
-    ## Returns the definition with the given identifier
+    # TODO: Rename
+    ## Returns the BODY OF definition with the given identifier
     #[
     NOTE:
     This is easily written as a one-liner.

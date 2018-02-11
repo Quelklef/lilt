@@ -82,16 +82,19 @@ else:
         inc(debugDepth)
 
     proc debugPop(msg: string) =
+        if debugDepth == 0: raise newException(Exception, "Cannot decrement to negative debug depth")
         dec(debugDepth)
         debugEcho(msg)
 
     proc debugWrap(rule: Rule, node: ONode): Rule =
         proc wrappedRule(head: int, text: string, lambdaState: LiltValue): RuleVal =
-            const snippetSize = 15
-            # Documentation of this line is left as an excersize for the reader:
-            let textSnippet = text[max(0, head - snippetSize) .. head - 1] & "[" & text[head] & "]" & text[head + 1 .. min(text.len, head + snippetSize)]
 
-            debugPush("Attempting to match `$1` to `$2`" % [strutils.escape(textSnippet, prefix="", suffix=""), node.toLilt])
+            const snippetSize = 15
+            var snip = "Attempting to match `" & text[max(0, head - snippetSize) .. head - 1]
+            snip &= "[" & text[head] & "]"
+            snip &= text[head + 1 .. min(text.len, head + snippetSize)]
+            snip &= "` to `" & node.toLilt & "`"
+            debugPush(snip)
 
             try:
                 result = rule(head, text, lambdaState)
@@ -326,6 +329,28 @@ method translate(g: Guard, context: LiltContext): Rule =
 
     return debugWrap(rule, g)
 
+method translate(res: Result, context: LiltContext): Rule =
+    let innerRule = translate(res.inner, context)
+
+    proc rule(head: int, text: string, lambdaState: LiltValue): RuleVal =
+        var lambdaState = lambdaState
+        var head = head
+
+        let returnVal = innerRule(head, text,lambdaState)
+        (head, lambdaState) = returnVal.hls
+        
+        case res.inner.returnType.get:
+        of ltText:
+            lambdaState.text = returnVal.val.get.text
+        of ltNode:
+            lambdaState.node = returnVal.val.get.node
+        of ltList:
+            lambdaState.list = returnVal.val.get.list
+
+        return (head, lambdaState)
+
+    return debugWrap(rule, res)
+
 method translate(p: outer_ast.Property, context: LiltContext): Rule =
     let innerRule = translate(p.inner, context)
 
@@ -355,7 +380,6 @@ method translate(adj: Adjoinment, context: LiltContext): Rule =
 
     return debugWrap(rule, adj)
 
-
 method translate(e: Extension, context: LiltContext): Rule =
     let innerRule = translate(e.inner, context)
     
@@ -368,7 +392,6 @@ method translate(e: Extension, context: LiltContext): Rule =
 
         return (returnVal.head, lambdaState)
    
-
     return debugWrap(rule, e)
 
 #~# Exposed API #~#

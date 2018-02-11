@@ -21,6 +21,7 @@ Optional                :code:`?rule`                    Optionally matches a ru
 Oneplus                 :code:`+rule`                    Matches a rule once or more
 Zeroplus                :code:`*rule`                    Matches a rule zero or more times
 Lambda                  :code:`{rule}`                   Makes a new state for :code:`rule`
+Result                  :code:`#rule`                    Sets the state to value from :code:`rule`
 Adjoinment              :code:`$rule`                    Appends text from :code:`rule` to state
 Property                :code:`key=rule`                 Maps :code:`key` on state to value from :code:`rule`
 Extension               :code:`&rule`                    Appends a node to the state
