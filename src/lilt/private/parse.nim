@@ -7,109 +7,12 @@ import options
 import outer_ast
 import strfix
 import inner_ast
-import quick
 import interpret
 import misc
 import sequtils
 import types
 
-let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added to allow for a `,` in front of EVERY line after
-    , "lineComment"   %= ~[ ^"/", $: ^"", * ~[ ! @"newline", @"any" ] ]  # $: ^"" included so always returns ""
-    , "blockComment"  %= ~[ ^"((", $: ^"", * ~[ ! ^"))", @"any" ], ^"))" ]
-    , "comment"       := |[ @"lineComment", @"blockComment" ]
-
-    # `d` as in "dead space"
-    , "d" := * |[ @"whitespace", @"comment" ]
-    # Modified deadspace which doesn't allow for newlines
-    , "md" := * |[ ~[ ! @"newline", @"whitespace" ], @"comment" ]
-
-    , "identifier" :=  ( + |[ @"alphanum", <>"_" ] )
-
-    , "program"    %= ~[ "definitions" .= % * ~[ @"d", & @"definition" ], @"d" ]
-    , "definition" %= ~[ "id" .= @"identifier" , @"d", ^":", @"d", "body" .= @"body" ]
-
-    , "body" := |[
-          @"sequence"
-        , @"choice"
-        , @"expression"
-    ]
-
-    # Use modified deadspace so that sequences won't consume the identifier of a rule coming after them,
-    # e.g.
-    # rule1: a b c
-    # rule2: d e f
-    # is parsed as rule1: [a b c] rule2: [d e f] rather than rule1: [a b c d]
-    , "sequence" %= ~[ "contents" .= % ~[ & @"expression", + ~[ @"md", & @"expression" ] ] ]
-    , "choice"   %= ~[ "contents" .= % ~[
-          ? ~[ ^"|", @"d" ]  # Allow for leading pipe
-        , ~[ & @"expression", + ~[ @"d", ^"|", @"d", & @"expression" ] ] ]
-        , ? ~[ @"d", ^"|" ]  # Allow for trailing pipe
-    ]
-
-    , "expression" := |[
-          @"property"  # Must go before reference because both begin with an identifier
-        , @"reference"
-        , @"literal"
-        , @"set"
-        , @"optional"
-        , @"oneplus"
-        , @"zeroplus"
-        , @"guard"
-        , @"result"
-        , @"adjoinment"
-        , @"extension"
-        , @"brackets"
-        , @"lambda"
-    ]
-
-    , "escapeChar" := ^"\\"
-    # Implements the following escapes: \trclabe
-    # In parsed code, they will appear with the backslash;
-    # the escapes need to be converted in Nim.
-    , "maybeEscapedChar" := |[
-          ~[ ! @"escapeChar", @"any" ]  # Any non-backslash OR
-        , ~[ @"escapeChar", <>"\\trclabe" ]  # A blackslash followed by one of: \trclabe
-    ]
-
-    , "reference" %= ( "id" .= @"identifier" )
-
-    , "doubleQuoteLiteralChar" := |[
-          ~[ @"escapeChar", ^"\"" ]  # \" OR
-        , ~[ ! ^"\"", @"maybeEscapedChar" ]  # a non-" normally-behaving char
-    ]
-    , "doubleQuoteLiteral" %= ~[ ^"\"", $: * @"doubleQuoteLiteralChar", ^"\"" ]
-
-    , "singleQuoteLiteralChar" := |[
-          ~[ @"escapeChar", ^"'" ]  # \' OR
-        , ~[ ! ^"'", @"maybeEscapedChar" ]  # a non-' normally-behaving char
-    ]
-    , "singleQuoteLiteral" %= ~[ ^"'", $: * @"singleQuoteLiteralChar", ^"'" ]
-
-    , "literal" %= ( "text" .= |[
-          @"doubleQuoteLiteral"
-        , @"singleQuoteLiteral"
-    ] )
-
-    , "setChar"     := |[
-          ~[ @"escapeChar", ^">" ]  # \> OR
-        , ~[ ! ^">", @"maybeEscapedChar" ]  # a non-> normally-behaving char
-    ]
-    , "set"         %= ~[ ^"<", "charset" .= * @"setChar", ^">" ]
-
-    , "optional"    %= ~[ ^"?", "inner" .= @"expression" ]
-    , "oneplus"     %= ~[ ^"+", "inner" .= @"expression" ]
-    , "zeroplus"    %= ~[ ^"*", "inner" .= @"expression" ]
-    , "guard"       %= ~[ ^"!", "inner" .= @"expression" ]
-
-    , "result"      %= ~[ ^"#", "inner" .= @"expression" ]
-    , "adjoinment"  %= ~[ ^"$", "inner" .= @"expression" ]
-    , "property"    %= ~[ "propName" .= @"identifier", ^"=", "inner" .= @"expression" ]
-    , "extension"   %= ~[ ^"&", "inner" .= @"expression" ]
-
-    , "brackets"    %= ~[ ^"[", @"d", "body" .= @"body", @"d", ^"]" ]
-    , "lambda"      %= ~[ ^"{", @"d", "body" .= @"body", @"d", ^"}" ]
-])
-
+import parser_ast
 types.preprocess(liltParserAst)
 let parsers: Table[string, Parser] = programToContext(liltParserAst)
 
@@ -177,7 +80,7 @@ proc toOuterAst(node: inner_ast.Node): ONode =
     of "adjoinment":
         return newAdjoinment(node["inner"].node.toOuterAst)
     of "property":
-        return newProperty(node["propName"].text, node["inner"].node.toOuterAst)
+        return newProperty(node["name"].text, node["inner"].node.toOuterAst)
     of "extension":
         return newExtension(node["inner"].node.toOuterAst)
     of "brackets":

@@ -32,7 +32,7 @@ reference: id=identifier
 
 maybe_escaped_char: [!escape_char any] | [escape_char <\\trclabe>]
 
-double_quote_literal: '"' $*double_quoted_literal_char '"'
+double_quote_literal: '"' $*double_quote_literal_char '"'
 double_quote_literal_char: [escape_char '"'] | [!'"' maybe_escaped_char]
 single_quote_literal: "'" $*single_quote_literal_char "'"
 single_quote_literal_char: [escape_char "'"] | [!"'" maybe_escaped_char]

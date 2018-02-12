@@ -41,7 +41,8 @@ method listProps*(n: ONode): Table[string, seq[ONode]] {.base.} =
 
 method toLilt*(n: ONode): string {.base.} =
     ## Converts a node back into Lilt code
-    raise newException(BaseError, "toLilt() undefined for type $1" % n.typeName)
+    ## Useful for debugging, errors, and warnings
+    raise newException(BaseError, "toLilt() illegal for type $1" % n.typeName)
 
 # Program
 

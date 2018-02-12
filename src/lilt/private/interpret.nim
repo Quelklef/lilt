@@ -90,9 +90,9 @@ else:
         proc wrappedRule(head: int, text: string, lambdaState: LiltValue): RuleVal =
 
             const snippetSize = 15
-            var snip = "Attempting to match `" & text[max(0, head - snippetSize) .. head - 1]
-            snip &= "[" & text[head] & "]"
-            snip &= text[head + 1 .. min(text.len, head + snippetSize)]
+            var snip = "Attempting to match `" & text[max(0, head - snippetSize) .. head - 1].escape
+            snip &= "[" & escape($text[head], prefix="", suffix="") & "]"
+            snip &= text[head + 1 .. min(text.len, head + snippetSize)].escape
             snip &= "` to `" & node.toLilt & "`"
             debugPush(snip)
 
