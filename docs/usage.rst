@@ -45,8 +45,9 @@ For your convenience, three :code:`LiltValue` initializers have also been includ
     proc initLiltValue*(list: seq[Node]): LiltValue =
         return LiltValue(kind: ltList, list: list)
 
+
 Sublime Text 3 Integration
-==========================
+--------------------------
 
 :file:`st3/Lilt.sublime-syntax` contains a syntax definition for Lilt specifications usable with Sublime Text 3. Unfortuantely, there is no package on Package Control (yet).
 
