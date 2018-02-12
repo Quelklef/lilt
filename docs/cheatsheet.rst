@@ -1,6 +1,6 @@
 
-Lilt Cheatsheet
-===============
+Cheatsheet
+==========
 
 Constructs
 ----------

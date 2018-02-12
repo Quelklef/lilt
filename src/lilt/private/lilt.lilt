@@ -1,0 +1,67 @@
+
+(( Comments ))
+
+line_comment: ["/" #"" *[!newline any]]
+block_comment: ["((" #"" *[!"))" any] "))"]
+comment: [line_comment | block_comment]
+
+(( General ))
+
+d: *[whitespace | comment]
+md: *[ [!newline whitespace] | comment ]
+
+identifier: +[alphanum | "_"]
+escape_char: "\\"
+
+(( Program ))
+
+program: definitions={ *[d &definition] } d
+definition: id=identifier d ":" d body=body
+
+sequence: contents={ [&expression +[md &expression]] }
+choice: ?["|" d] contents={ [&expression +[d "|" d &expression]] } ?[d "|"]
+
+body:
+    | sequence
+    | choice
+    | expression
+
+(( Expressions ))
+
+reference: id=identifier
+
+maybe_escaped_char: [!escape_char any] | [escape_char <\\trclabe>]
+
+double_quote_literal: '"' $*double_quoted_literal_char '"'
+double_quote_literal_char: [escape_char '"'] | [!'"' maybe_escaped_char]
+single_quote_literal: "'" $*single_quote_literal_char "'"
+single_quote_literal_char: [escape_char "'"] | [!"'" maybe_escaped_char]
+literal: text=[ double_quote_literal | single_quote_literal ]
+
+set: "<" charset=*set_char ">"
+set_char: [escape_char ">"] | [!">" maybe_escaped_char]
+optional: "?" inner=expression
+oneplus: "+" inner=expression
+zeroplus: "*" inner=expression
+guard: "!" inner=expression
+result: "#" inner=expression
+adjoinment: "$" inner=expression
+property: name=identifier "=" inner=expression
+extension: "&" inner=expression
+brackets: "[" d body=body d "]"
+lambda: "{" d body=body d "}"
+
+expression:
+    | property
+    | reference
+    | literal
+    | set
+    | optional
+    | oneplus
+    | zeroplus
+    | guard
+    | result
+    | adjoinment
+    | extension
+    | brackets
+    | lambda

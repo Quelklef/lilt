@@ -110,8 +110,6 @@ let liltParserAst = outer_ast.newProgram(@[ "" := ^""  # This rule is only added
     , "lambda"      %= ~[ ^"{", @"d", "body" .= @"body", @"d", ^"}" ]
 ])
 
-echo liltParserAst.toLilt
-
 types.preprocess(liltParserAst)
 let parsers: Table[string, Parser] = programToContext(liltParserAst)
 

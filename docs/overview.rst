@@ -1,6 +1,6 @@
 
-Lilt Overview
-=============
+Overview
+========
 
 .. _`parser generator`: https://en.wikipedia.org/wiki/Compiler-compiler
 

@@ -1,0 +1,84 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/3/syntax.html
+file_extensions:
+  - lilt
+scope: source.example-c
+contexts:
+  main:
+    - match: '/'
+      scope: punctuation.definition.comment.example-c
+      push: line_comment
+
+    - match: '\(\('
+      scope: punctuation.definition.comment.example-c
+      push: block_comment
+
+    # Builtins
+    - match: '(alphanum|newline|whitespace|\_|any|lower|upper|alpha|digit)'
+      scope: variable.language
+
+    # Rule definition
+    - match: '[a-zA-Z_]+(?=:)'
+      scope: entity.name.function
+
+    # We consider the left side of `=` as a "parameter" to `=`
+    - match: '[a-zA-Z_]+(?=\=)'
+      scope: variable.parameter
+
+    - match: '[a-zA-Z_]+'
+      scope: variable
+
+    - match: '(:|&|\*|\+|\$|=|!|\?|#)'
+      scope: keyword.operator
+
+    - match: '(\||\[|\]|\{|\})'
+      scope: keyword.other
+
+    - match: '"'
+      scope: punctuation.definition.string.begin.example-c
+      push: double_quoted_string
+
+    - match: "'"
+      scope: punctuation.definition.string.begin.example-c
+      push: single_quoted_string
+
+    - match: "<"
+      scope: string.other
+      push: set
+
+  double_quoted_string:
+    - meta_scope: string.quoted.double
+    - match: '\\.'
+      scope: constant.character.escape.example-c
+    - match: '"'
+      scope: punctuation.definition.string.end.example-c
+      pop: true
+
+  single_quoted_string:
+    - meta_scope: string.quoted.single
+    - match: '\\.'
+      scope: constant.character.escape
+    - match: "'"
+      scope: punctuation.definition.string.end.example-c
+      pop: true
+
+  set:
+    - meta_scope: string.other
+    - match: '\\.'
+      scope: constant.character.escape.example-c
+    - match: ">"
+      pop: true
+
+  line_comment:
+    - meta_scope: comment.line
+    - match: $
+      pop: true
+
+  block_comment:
+    - meta_scope: comment.block
+    - match: '\)\)'
+      pop: true
+    # Account for nested comments
+    - match: '\(\('
+      push: block_comment
