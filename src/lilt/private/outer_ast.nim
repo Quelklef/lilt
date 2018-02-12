@@ -41,8 +41,7 @@ method listProps*(n: ONode): Table[string, seq[ONode]] {.base.} =
 
 method toLilt*(n: ONode): string {.base.} =
     ## Converts a node back into Lilt code
-    #if true: return "<>"
-    raise new(BaseError)
+    raise newException(BaseError, "toLilt() undefined for type $1" % n.typeName)
 
 # Program
 
@@ -61,7 +60,12 @@ method listProps*(p: Program): auto =
 method typeName(p: Program): string = "Program"
 
 method toLilt*(p: Program): string =
-    return p.definitions.map(toLilt).join("\n")
+    if p.definitions.len == 0:
+        return ""
+
+    result = p.definitions[0].toLilt
+    for def in p.definitions[1 .. p.definitions.len - 1]:
+        result &= "\n" & def.toLilt
 
 # Reference
 
@@ -123,7 +127,11 @@ method nodeProps*(la: Lambda): auto =
 method typeName(l: Lambda): string = "Lambda"
 
 method toLilt*(l: Lambda): string =
-    return "{ $1 }" % l.body.toLilt
+    if l.parent of Definition:
+        # Don't render top-level lambdas
+        return l.body.toLilt
+    else:
+        return "{ $1 }" % l.body.toLilt
 
 # Sequence
 
@@ -143,9 +151,11 @@ method typeName(s: Sequence): string = "Sequence"
 
 method toLilt*(s: Sequence): string =
     # DON'T make a single-liner with .mapIt(). It doesn't work for some reason.
-    result = "[ "
-    for node in s.contents:
-        result &= node.toLilt & " "
+    result = "["
+    if s.contents.len > 0:
+        result &= s.contents[0].toLilt
+    for node in s.contents[1 .. s.contents.len - 1]:
+        result &= " " & node.toLilt
     result &= "]"
 
 # Choice
