@@ -36,6 +36,7 @@ Key          Mapping
 :code:`\"`   Literal "
 :code:`\>`   Literal >
 :code:`\xHH` Character with given hex value
+============ ================================
 
 
 Set
