@@ -72,3 +72,7 @@ proc asString*(charset: set[char]): string =
     result = ""
     for c in charset:
         result &= c
+
+proc invert*[N, K, V](t: array[N, (K, V)]): array[N, (V, K)] =
+    for idx, tup in t:
+        result[idx] = (tup[1], tup[0])

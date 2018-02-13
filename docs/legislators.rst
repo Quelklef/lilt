@@ -16,6 +16,27 @@ Literal legislators begin and end with a double quote or single quote. Inbetween
 
 For instance, :code:`"banana"` will match any text beginning with "banana". Matching this text, it will consume 6 characters (the length of the word "banana") and return the text "banana". If the text doesn't start with "banana", the rule will fail.
 
+Escape Sequences
+~~~~~~~~~~~~~~~~
+
+Literals may contain the following escape sequences
+
+============ ================================
+Key          Mapping
+============ ================================
+:code:`\\`   Literal backslash
+:code:`\t`   Tab
+:code:`\r`   Carriage return
+:code:`\c`   Carriage return
+:code:`\l`   Linefeed
+:code:`\a`   Alert
+:code:`\b`   Backspace
+:code:`\e`   ESC
+:code:`\'`   Literal '
+:code:`\"`   Literal "
+:code:`\>`   Literal >
+:code:`\xHH` Character with given hex value
+
 
 Set
 ---
@@ -26,6 +47,7 @@ Set legislators begin with a :code:`<` and end with a :code:`>`. Contained withi
 
 For instance :code:`<abcdef>` will match "a", "b", "c", "d", "e", or "f". If it matches, it will consume the a single character and return it. If the text doesn't match, it will fail.
 
+Sets have the same escape sequences as literals.
 
 Sequence
 --------

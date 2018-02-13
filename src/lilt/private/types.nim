@@ -18,7 +18,6 @@ import base
 import outer_ast
 import misc
 import builtins
-import debug
 
 type SemanticError* = object of Exception
 type TypeError* = object of SemanticError
@@ -227,7 +226,7 @@ proc inferReturnTypes(ast: ONode) =
     if toInfer.len > 0:
         raise newException(TypeError, "Unable to infer all types.")
 
-    when doDebug:
+    when defined(debug):
         echo "Type inference complete:"
         echo $$ast
 

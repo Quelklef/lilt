@@ -24,7 +24,6 @@ import types
 import base
 import misc
 import builtins
-import debug
 
 proc hls(rv: RuleVal): (int, LiltValue) =
     # No semantic meaning, exists only to make code terser
@@ -67,7 +66,7 @@ converter toRuleVal(retVal: (int, Option[LiltValue], LiltValue)): RuleVal =
 
 type LiltContext* = TableRef[string, Rule]
 
-when not doDebug:
+when not defined(debug):
     template debugWrap(rule: Rule, node: ONode): Rule =
         rule
 
@@ -90,9 +89,9 @@ else:
         proc wrappedRule(head: int, text: string, lambdaState: LiltValue): RuleVal =
 
             const snippetSize = 15
-            var snip = "Attempting to match `" & text[max(0, head - snippetSize) .. head - 1].escape
-            snip &= "[" & escape($text[head], prefix="", suffix="") & "]"
-            snip &= text[head + 1 .. min(text.len, head + snippetSize)].escape
+            var snip = "Attempting to match `" & text[max(0, head - snippetSize) .. head - 1]
+            snip &= "[" & $text[head] & "]"
+            snip &= text[head + 1 .. min(text.len, head + snippetSize)]
             snip &= "` to `" & node.toLilt & "`"
             debugPush(snip)
 

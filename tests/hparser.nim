@@ -1,7 +1,7 @@
 
 import lilt/private/outer_ast
 import lilt/private/parse
-import lilt/private/quick
+import quick
 
 import strutils
 

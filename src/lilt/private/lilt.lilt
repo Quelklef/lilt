@@ -30,7 +30,11 @@ body:
 
 reference: id=identifier
 
-maybe_escaped_char: [!escape_char any] | [escape_char <\\trclabe>]
+maybe_escaped_char:
+    | [!escape_char any]
+    | [escape_char <\\trclabe'"\>>]
+    | [escape_char "x" hex_char hex_char]
+hex_char: <abcdefABCDEF> | digit
 
 double_quote_literal: '"' $*double_quote_literal_char '"'
 double_quote_literal_char: [escape_char '"'] | [!'"' maybe_escaped_char]

@@ -1,7 +1,6 @@
 
 import strutils
 import tables
-import macros
 import options
 
 import outer_ast
@@ -29,22 +28,48 @@ proc parseProgram*(code: string): Program =
 proc parseBody*(code: string): ONode =
     return parsers["body"](code).node.toOuterAst
 
-proc unescape(s: string): string =
-    # Maps escape codes to values
-    return s.multiReplace({
-        "\\'": "'",
-        "\\\"": "\"",
-        "\\>": ">",
+const escapeChar = '\\'
+const staticEscapes = {
+    '\\': "\\",
+    '\'': "'",
+    '"': "\"",
+    '>': ">",
+    't': "\t",
+    'r': "\r",
+    'c': "\c",
+    'l': "\l",
+    'a': "\a",
+    'b': "\b",
+    'e': "\e",
+}
+let staticEscapesTable = staticEscapes.toTable
 
-        "\\t": "\t",
-        "\\r": "\r",
-        "\\c": "\c",
-        "\\l": "\l",
-        "\\a": "\a",
-        "\\b": "\b",
-        "\\e": "\e",
-        "\\\\": "\\",
-    })
+proc liltUnescape(s: string): string =
+    result = ""
+    var head = 0
+    while head < s.len:
+        if s{head} == escapeChar:
+            let next = s{head + 1}
+            if next in staticEscapesTable:
+                result &= staticEscapesTable[next]
+                inc(head, 2)
+            else:
+                if next == 'x':
+                    let hex1 = s{head + 2}
+                    if hex1 == '\0':
+                        raise newException(ValueError, "\xHH requires 2 digits, got 0.")
+                    let hex2 = s{head + 3}
+                    if hex2 == '\0':
+                        raise newException(ValueError, "\xHH requires 2 digits, got 1.")
+
+                    let value = unescape(s[head .. head + 3], prefix="", suffix="")
+                    result &= value
+                    inc(head, 4)
+                else:
+                    raise newException(ValueError, "Invalid escape '$1'" % s[head .. head + 1])
+        else:
+            result &= s{head}
+            inc(head)
 
 proc toOuterAst(node: inner_ast.Node): ONode =
     case node.kind:
@@ -64,9 +89,9 @@ proc toOuterAst(node: inner_ast.Node): ONode =
     of "reference":
         return newReference(node["id"].text)
     of "literal":
-        return newLiteral(node["text"].text.unescape)
+        return newLiteral(node["text"].text.liltUnescape)
     of "set":
-        return newSet(node["charset"].text.unescape)
+        return newSet(node["charset"].text.liltUnescape)
     of "optional":
         return newOptional(node["inner"].node.toOuterAst)
     of "oneplus":
