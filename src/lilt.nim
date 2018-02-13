@@ -9,15 +9,21 @@ import lilt/private/base
 import lilt/private/parse
 import lilt/private/types
 import lilt/private/interpret
+import lilt/private/hints
 
 export base.Parser
 export base.LiltValue
 export base.LiltType
 export base.RuleError
 
+import logging
+var log = newConsoleLogger(fmtStr="[$datetime] $levelname :: ")
+addHandler(log)
+
 proc makeParsers*(code: string): Table[string, Parser] =
     let ast = parse.parseProgram(code)
     types.preprocess(ast)
+    hints.logHints(ast)
     let parsers = interpret.programToContext(ast)
 
     return parsers

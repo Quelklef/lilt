@@ -76,3 +76,7 @@ proc asString*(charset: set[char]): string =
 proc invert*[N, K, V](t: array[N, (K, V)]): array[N, (V, K)] =
     for idx, tup in t:
         result[idx] = (tup[1], tup[0])
+
+template addAll*[T](s1: var seq[T], s2: seq[T]) =
+    for item in s2:
+        s1.add(item)
