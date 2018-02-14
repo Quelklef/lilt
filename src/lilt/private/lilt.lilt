@@ -7,19 +7,20 @@ comment: [line_comment | block_comment]
 
 (( General ))
 
-d: *[whitespace | comment]
-md: *[ !newline whitespace | comment ]
+_: *[whitespace | comment]
+/ "whitespace no newline"
+_nn: *[!newline whitespace | comment]
 
 identifier: +[alphanum | "_"]
 escape_char: "\\"
 
 (( Program ))
 
-program: definitions={ *[d &definition] } d
-definition: id=identifier d ":" d body=body
+program: definitions={ *[_ &definition] } _
+definition: id=identifier _ ":" _ body=body
 
-sequence: contents={ [&expression +[md &expression]] }
-choice: ?["|" d] contents={ [&choice_term +[d "|" d &choice_term]] } ?[d "|"]
+sequence: contents={ [&expression +[_nn &expression]] }
+choice: ?["|" _] contents={ [&choice_term +[_ "|" _ &choice_term]] } ?[_ "|"]
 choice_term: sequence | expression
 
 body:
@@ -53,8 +54,8 @@ result: "#" inner=expression
 adjoinment: "$" inner=expression
 property: name=identifier "=" inner=expression
 extension: "&" inner=expression
-brackets: "[" d body=body d "]"
-lambda: "{" d body=body d "}"
+brackets: "[" _ body=body _ "]"
+lambda: "{" _ body=body _ "}"
 
 expression:
     | property

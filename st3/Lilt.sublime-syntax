@@ -7,12 +7,16 @@ scope: source.example-c
 contexts:
   main:
     - match: '/'
-      scope: punctuation.definition.comment.example-c
+      scope: comment.line.character
       push: line_comment
 
     - match: '\(\('
-      scope: punctuation.definition.comment.example-c
+      scope: comment.block
       push: block_comment
+
+    - match: '--'
+      scope: entity.name.section
+      push: section_header
 
     # Builtins
     - match: '(alphanum|newline|whitespace|\_|any|lower|upper|alpha|digit)'
@@ -36,23 +40,23 @@ contexts:
       scope: keyword.other
 
     - match: '"'
-      scope: punctuation.definition.string.begin.example-c
+      scope: string.quoted.double
       push: double_quoted_string
 
     - match: "'"
-      scope: punctuation.definition.string.begin.example-c
+      scope: string.quoted.single
       push: single_quoted_string
 
     - match: "<"
-      scope: string.other
+      scope: string.quoted.other
       push: set
 
   double_quoted_string:
     - meta_scope: string.quoted.double
     - match: '\\.'
-      scope: constant.character.escape.example-c
+      scope: constant.character.escape
     - match: '"'
-      scope: punctuation.definition.string.end.example-c
+      scope: string.quoted.double
       pop: true
 
   single_quoted_string:
@@ -60,13 +64,13 @@ contexts:
     - match: '\\.'
       scope: constant.character.escape
     - match: "'"
-      scope: punctuation.definition.string.end.example-c
+      scope: string.quoted.single
       pop: true
 
   set:
-    - meta_scope: string.other
+    - meta_scope: string.quoted.other
     - match: '\\.'
-      scope: constant.character.escape.example-c
+      scope: string.quoted.other
     - match: ">"
       pop: true
 
@@ -82,3 +86,8 @@ contexts:
     # Account for nested comments
     - match: '\(\('
       push: block_comment
+
+  section_header:
+    - meta_scope: entity.name.section
+    - match: '--'
+      pop: true
