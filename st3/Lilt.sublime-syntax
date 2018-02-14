@@ -3,41 +3,24 @@
 # See http://www.sublimetext.com/docs/3/syntax.html
 file_extensions:
   - lilt
-scope: source.example-c
+scope: source
 contexts:
   main:
     - match: '/'
-      scope: comment.line.character
+      scope: punctuation.definition.comment
       push: line_comment
 
     - match: '\(\('
-      scope: comment.block
+      scope: punctuation.definition.comment
       push: block_comment
-
-    - match: '--'
-      scope: entity.name.section
-      push: section_header
-
-    # Builtins
-    - match: '(alphanum|newline|whitespace|\_|any|lower|upper|alpha|digit)'
-      scope: variable.language
 
     # Rule definition
     - match: '[a-zA-Z_]+(?=:)'
       scope: entity.name.function
+      push: rule_definition
 
-    # We consider the left side of `=` as a "parameter" to `=`
-    - match: '[a-zA-Z_]+(?=\=)'
-      scope: variable.parameter
-
-    - match: '[a-zA-Z_]+'
-      scope: variable
-
-    - match: '(:|&|\*|\+|\$|=|!|\?|#)'
-      scope: keyword.operator
-
-    - match: '(\||\[|\]|\{|\})'
-      scope: keyword.other
+  rule_definition:
+    - meta_scope: meta.function
 
     - match: '"'
       scope: string.quoted.double
@@ -51,9 +34,60 @@ contexts:
       scope: string.quoted.other
       push: set
 
+    # Pop at another rule definition
+    - match: '(?=[a-zA-Z_]+:)'
+      pop: true
+
+    - match: '/'
+      scope: punctuation.definition.comment
+      push: line_comment
+
+    - match: '\(\('
+      scope: punctuation.definition.comment
+      push: block_comment
+
+    # We consider the left side of `=` to be a "parameter" to `=`
+    - match: '[a-zA-Z_]+(?=\=)'
+      scope: variable.parameter
+
+    - match: '[a-zA-Z_]+'
+      scope: variable
+
+    - match: '(&|\*|\+|\$|=|!|\?|#)'
+      scope: keyword.operator
+
+    - match: '(:|\|)'
+      scope: punctuation.separator
+
+    - match: '\{'
+      scope: punctuation.section.braces.begin
+      push: [lambda, rule_definition]
+
+    - match: '(?=\})'
+      pop: true
+
+    - match: '\['
+      scope: punctuation.section.brackets.begin
+      push: [brackets, rule_definition]
+
+    - match: '(?=\])'
+      pop: true
+
+  lambda:
+    - meta_scope: meta.braces
+    - match: '\}'
+      scope: punctuation.section.braces.end
+      pop: true
+
+  brackets:
+    - meta_scope: meta.brackets
+    - match: '\]'
+      scope: punctuation.section.brackets.end
+      pop: true
+
   double_quoted_string:
     - meta_scope: string.quoted.double
-    - match: '\\.'
+    - match: '(\\x[a-fA-F0-9]{2}|\\.)'
       scope: constant.character.escape
     - match: '"'
       scope: string.quoted.double
@@ -61,7 +95,7 @@ contexts:
 
   single_quoted_string:
     - meta_scope: string.quoted.single
-    - match: '\\.'
+    - match: '(\\x[a-fA-F0-9]{2}|\\.)'
       scope: constant.character.escape
     - match: "'"
       scope: string.quoted.single
@@ -69,9 +103,10 @@ contexts:
 
   set:
     - meta_scope: string.quoted.other
-    - match: '\\.'
-      scope: string.quoted.other
+    - match: '(\\x[a-fA-F0-9]{2}|\\.)'
+      scope: constant.character.escape
     - match: ">"
+      scope: string.quoted.other
       pop: true
 
   line_comment:
@@ -83,11 +118,7 @@ contexts:
     - meta_scope: comment.block
     - match: '\)\)'
       pop: true
+
     # Account for nested comments
     - match: '\(\('
       push: block_comment
-
-  section_header:
-    - meta_scope: entity.name.section
-    - match: '--'
-      pop: true
