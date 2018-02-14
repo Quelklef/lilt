@@ -201,8 +201,7 @@ method textProps*(li: Literal): auto =
 method typeName(li: Literal): string = "Literal"
 
 method toLilt*(li: Literal): string =
-    # TODO: strutils.unescape probably isn't QUITE correct
-    return "\"$1\"" % strutils.unescape(li.text, prefix="", suffix="")
+    return "\"$1\"" % liltUnescape(li.text)
 
 # Set
 
@@ -221,8 +220,7 @@ method textProps*(s: Set): auto =
 method typeName(s: Set): string = "Set"
 
 method toLilt*(s: Set): string =
-    # TODO: strutils.unescape doesn't account for >
-    return "<$1>" % strutils.unescape(s.charset, prefix="", suffix="")
+    return "<$1>" % liltUnescape(s.charset)
 
 # Optional
 

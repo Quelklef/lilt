@@ -89,7 +89,7 @@ method inferReturnType(prog: Program, known: Known): Option[LiltType] =
 method canBeInferred(res: Result, known: Known): bool =
     return res.inner in known
 method inferReturnType(res: Result, known: Known): Option[LiltType] =
-    if res.inner.returnType.isNone:
+    if res.inner.returnType == none(LiltType):
         raise newException(TypeError, "Cannot have result of rule that returns type '$1'" % $res.inner.returnType)
     return none(LiltType)
 
@@ -98,7 +98,7 @@ method canBeInferred(op: OnePlus, known: Known): bool =
 method inferReturnType(op: OnePlus, known: Known): Option[LiltType] =
     let inner = op.inner
 
-    if inner.returnType.isNone:
+    if inner.returnType == none(LiltType):
         # If typeless, execute statement several times and return nothing
         return none(LiltType)
 

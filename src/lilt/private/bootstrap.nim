@@ -41,9 +41,11 @@ template pr(a: string, b: N): N = newProperty(a, b).N
 let liltParserAst* = Program($1)
 """
 
-import outer_ast
-import misc
 import strutils
+
+import misc
+import outer_ast
+import base
 
 method toNim(n: ONode): string {.base.} =
     ## Converts a node back into Nim code constructing its AST
@@ -77,10 +79,10 @@ method toNim(c: Choice): string =
     return "c(@[$1])" % contents.join(",")
 
 method toNim(li: Literal): string =
-    return "li($1)" % li.text.escape
+    return "li($1)" % liltEscape(li.text)
 
 method toNim(s: Set): string =
-    return "se($1)" % s.charset.escape  # TODO: need a `liltEscape` proc
+    return "se($1)" % liltEscape(s.charset)
 
 method toNim(o: Optional): string =
     return "o($1)" % o.inner.toNim

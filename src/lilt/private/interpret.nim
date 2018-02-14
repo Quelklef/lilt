@@ -112,7 +112,7 @@ method translate(node: ONode, context: LiltContext): Rule {.base.} =
     raise newException(WrongTypeError, "Cannot translate node $1" % $node)
 
 
-proc deference(id: string, context: LiltContext): Rule =
+proc dereference(id: string, context: LiltContext): Rule =
     if id in context:
         return context[id]
     else:
@@ -141,19 +141,13 @@ method translate(re: Reference, context: LiltContext): Rule =
 
     let referenceKnownNow = re.id in context or re.id in liltBuiltins
 
-    #[ when doDebug:
-        if referenceKnownNow:
-            echo "Reference '$1' found immediately." % re.id
-        else:
-            echo "Reference '$1' defered to runtime." % re.id ]#
-
     if referenceKnownNow:
-        let reference = deference(re.id, context)
+        let reference = dereference(re.id, context)
         rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
             return reference(head, text, lambdaState)
     else:
         rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
-            return deference(re.id, context)(head, text, lambdaState)
+            return dereference(re.id, context)(head, text, lambdaState)
 
     return debugWrap(rule, re)
 
@@ -249,7 +243,7 @@ method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
     var rule: proc(head: int, text: string, lambdaState: LiltValue): RuleVal
 
-    if o.inner.returnType == none(LiltType):
+    if o.inner.returnType== none(LiltType):
         rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
             return innerRule(head, text, lambdaState).hls
 
@@ -303,7 +297,7 @@ method translate(op: OnePlus, context: LiltContext): Rule =
         if matchedCount == 0:
             raise newException(RuleError, "Expected text to match at least once.")
 
-        if op.returnType.isNone:
+        if op.returnType== none(LiltType):
             return (head, lambdaState)
 
         case op.returnType.get:

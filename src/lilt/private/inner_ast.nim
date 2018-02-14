@@ -29,11 +29,6 @@ proc `$$`*(node: Node): string =
 
 #~# JSON backend #~#
 
-# TODO: After bootstrapping starts, the type definitions in this file
-# should be moved to ast.nim
-# The procs should be moved to astutils.nim or something
-# and this should be moved to toJson.nim or something
-
 proc seqToJsonNode(se: seq[JsonNode]): JsonNode =
     result = newJArray()
     result.elems = se

@@ -8,8 +8,6 @@ import logging
 import misc
 import outer_ast
 
-var ler = newConsoleLogger(fmtStr=verboseFmtStr)
-
 type Hint = ref object of RootObj
     text*: string
     blame*: ONode
