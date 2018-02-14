@@ -8,7 +8,7 @@ comment: [line_comment | block_comment]
 (( General ))
 
 d: *[whitespace | comment]
-md: *[ [!newline whitespace] | comment ]
+md: *[ !newline whitespace | comment ]
 
 identifier: +[alphanum | "_"]
 escape_char: "\\"
@@ -19,11 +19,12 @@ program: definitions={ *[d &definition] } d
 definition: id=identifier d ":" d body=body
 
 sequence: contents={ [&expression +[md &expression]] }
-choice: ?["|" d] contents={ [&expression +[d "|" d &expression]] } ?[d "|"]
+choice: ?["|" d] contents={ [&choice_term +[d "|" d &choice_term]] } ?[d "|"]
+choice_term: sequence | expression
 
 body:
-    | sequence
     | choice
+    | sequence
     | expression
 
 (( Expressions ))
@@ -31,19 +32,19 @@ body:
 reference: id=identifier
 
 maybe_escaped_char:
-    | [!escape_char any]
-    | [escape_char <\\trclabe'"\>>]
-    | [escape_char "x" hex_char hex_char]
+    | !escape_char any
+    | escape_char <\\trclabe'"\>>
+    | escape_char "x" hex_char hex_char
 hex_char: <abcdefABCDEF> | digit
 
 double_quote_literal: '"' $*double_quote_literal_char '"'
-double_quote_literal_char: [escape_char '"'] | [!'"' maybe_escaped_char]
+double_quote_literal_char: escape_char '"' | !'"' maybe_escaped_char
 single_quote_literal: "'" $*single_quote_literal_char "'"
-single_quote_literal_char: [escape_char "'"] | [!"'" maybe_escaped_char]
+single_quote_literal_char: escape_char "'" | !"'" maybe_escaped_char
 literal: text=[ double_quote_literal | single_quote_literal ]
 
 set: "<" charset=*set_char ">"
-set_char: [escape_char ">"] | [!">" maybe_escaped_char]
+set_char: escape_char ">" | !">" maybe_escaped_char
 optional: "?" inner=expression
 oneplus: "+" inner=expression
 zeroplus: "*" inner=expression
