@@ -1,9 +1,9 @@
 
 (( Comments ))
 
-line_comment: ["/" #"" *[!newline any]]
-block_comment: ["((" #"" *[!"))" any] "))"]
-comment: [line_comment | block_comment]
+line_comment: "/" #"" *[!newline any]
+block_comment: "((" #"" *[!"))" any] "))"
+comment: line_comment | block_comment
 
 (( General ))
 
@@ -19,8 +19,8 @@ escape_char: "\\"
 program: definitions={ *[_ &definition] } _
 definition: id=identifier _ ":" _ body=body
 
-sequence: contents={ [&expression +[_nn &expression]] }
-choice: ?["|" _] contents={ [&choice_term +[_ "|" _ &choice_term]] } ?[_ "|"]
+sequence: contents={ &expression +[_nn &expression] }
+choice: ?["|" _] contents={ &choice_term +[_ "|" _ &choice_term] } ?[_ "|"]
 choice_term: sequence | expression
 
 body:

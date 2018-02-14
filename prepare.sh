@@ -1,6 +1,7 @@
 
 # Helper script
 # Should be run before each significant `git commit`
+# Included so that I stop forgetting steps in the process
 
 code_stub="$PWD/src/lilt/private"
 stable_parser_loc="$code_stub/parser_ast_stable.nim"
@@ -54,4 +55,4 @@ else
     "$version_sh_loc" "$reply"
 fi
 
-echo "Now: git status & git commit"
+echo "Now: nimble test, git status, git add, git commit"
