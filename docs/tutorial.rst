@@ -1,5 +1,5 @@
 
-Lilt Tutortial
+Lilt Tutorial
 ==============
 
 .. _`JSON`: http://www.json.org/
