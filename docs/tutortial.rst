@@ -9,7 +9,7 @@ begin, we'll start by creating a BNF-like Lilt specification for JSON, and then 
 actual "parser generator" bits in afterwards.
 
 Let's start with something simple, a JSON :code:`string`. For now, we'll skip implementing
-escapes; :code:`\` will be handled literally, and :code:`"` will not be allowed in a string.
+escapes; :code:`\\` will be handled literally, and :code:`"` will not be allowed in a string.
 
 .. code-block::
   
