@@ -1,6 +1,4 @@
-
 #[ 
-
 ONode definiton for parsed Lilt code.
 
 Each kind of Node on the ONode has its own Nim type.
@@ -9,7 +7,6 @@ All properties of subtypes of ONode should be of type
 Node, string, or seq[Node]
 and should thus be returned in textProps,
 nodeProps, or listProps.
-
 ]#
 
 import sequtils

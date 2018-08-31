@@ -7,11 +7,11 @@ Lilt docs
    :caption: Contents:
 
    overview
+   tutortial
    cheatsheet
    legislators
    examples
    usage
-   contributing
 
 
 

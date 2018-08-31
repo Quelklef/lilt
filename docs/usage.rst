@@ -28,11 +28,11 @@ The returned value may be text, a node, or a list of nodes. This is encoded in t
         of ltList:
             list*: seq[Node]
 
-In order to create parsers, one should use the included `makeParsers` proc, which looks like::
+In order to create parsers, one should use the included :code:`makeParsers` proc, which looks like::
 
     proc makeParsers*(code: string): Table[string, Parser]
 
-It accepts a Lilt specification (:code:`code`), and returns all of the defined rules in that specification as a table mapping `string`s to `Parser`s.
+It accepts a Lilt specification (:code:`code`), and returns all of the defined rules in that specification as a table mapping :code:`string`s to :code:`Parser`s.
 
 For your convenience, three :code:`LiltValue` initializers have also been included::
 
@@ -52,5 +52,3 @@ Sublime Text 3 Integration
 :file:`st3/Lilt.sublime-syntax` contains a syntax definition for Lilt specifications usable with Sublime Text 3. Unfortuantely, there is no package on Package Control (yet).
 
 To install, just drop :file:`Lilt.sublime-text` into :file:`~/.config/sublime-text-3/Packages/User`. Then, in ST3, select `view > syntax > Lilt`. However, this should not be needed for :file:`.lilt` files.
-
-To be honest, this probably isn't the best way to do it. but it will work/
