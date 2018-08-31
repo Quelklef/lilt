@@ -1,9 +1,8 @@
-
 #[
 The Lilt grammar and parser is written in Lilt.
-This processed used to allow for this is somewhat comparable to compiler bootstrapping.
+The processed used to allow for this is somewhat comparable to compiler bootstrapping.
 
-We started with a parser written in Nim as a straight Lilt AST.
+We started with a parser written, in Nim, as a literal Lilt AST.
 This could be used as a parser via the Lilt interpreter.
 When we write a new Lilt specification (lilt.lilt), it is parsed via the existing parser,
 and the resultant AST is so called backwards-processed into Nim code which will generate it.

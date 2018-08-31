@@ -1,9 +1,9 @@
 
 #[ 
 
-ASONode definiton for parsed Lilt code.
+ONode definiton for parsed Lilt code.
 
-Each kind of Node on the ASONode has its own Nim type.
+Each kind of Node on the ONode has its own Nim type.
 
 All properties of subtypes of ONode should be of type
 Node, string, or seq[Node]

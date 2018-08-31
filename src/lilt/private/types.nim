@@ -1,4 +1,3 @@
-
 #[
 Handles type inference in the outer ast.
 
@@ -39,50 +38,21 @@ method canBeInferred(node: ONode, known: Known): bool {.base.} =
 # whether or not we know the return types of any other nodes in
 # the AST.)
 
-method canBeInferred(prop: outer_ast.Property, known: Known): bool =
+template indTypeImpl(nimType, liltType: untyped): untyped =
+  method canBeInferred(node: nimType, known: Known): bool =
     return true
-method inferReturnType(prop: outer_ast.Property, known: Known): Option[LiltType] =
-    return none(LiltType)
+  method inferReturnType(prop: nimType, known: Known): Option[LiltType] =
+    return liltType
 
-method canBeInferred(adj: Adjoinment, known: Known): bool =
-    return true
-method inferReturnType(adj: Adjoinment, known: Known): Option[LiltType] =
-    return none(LiltType)
-
-method canBeInferred(ext: Extension, known: Known): bool =
-    return true
-method inferReturnType(ext: Extension, known: Known): Option[LiltType] =
-    return none(LiltType)
-
-method canBeInferred(guard: Guard, known: Known): bool =
-    return true
-method inferReturnType(guard: Guard, known: Known): Option[LiltType] =
-    return none(LiltType)
-
-method canBeInferred(se: Set, known: Known): bool =
-    return true
-method inferReturnType(se: Set, known: Known): Option[LiltType] =
-    return some(ltText)
-
-method canBeInferred(lit: Literal, known: Known): bool =
-    return true
-method inferReturnType(lit: Literal, known: Known): Option[LiltType] =
-    return some(ltText)
-
-method canBeInferred(se: Sequence, known: Known): bool =
-    return true
-method inferReturnType(se: Sequence, known: Known): Option[LiltType] =
-    return some(ltText)
-
-method canBeInferred(def: Definition, known: Known): bool =
-    return true
-method inferReturnType(def: Definition, known: Known): Option[LiltType] =
-    return none(LiltType)
-
-method canBeInferred(prog: Program, known: Known): bool =
-    return true
-method inferReturnType(prog: Program, known: Known): Option[LiltType] =
-    return none(LiltType)
+indTypeImpl(outer_ast.Property  , none(LiltType))
+indTypeImpl(outer_ast.Adjoinment, none(LiltType))
+indTypeImpl(outer_ast.Extension , none(LiltType))
+indTypeImpl(outer_ast.Guard     , none(LiltType))
+indTypeImpl(outer_ast.Set       , some(ltText))
+indTypeImpl(outer_ast.Literal   , some(ltText))
+indTypeImpl(outer_ast.Sequence  , some(ltText))
+indTypeImpl(outer_ast.Definition, none(LiltType))
+indTypeImpl(outer_ast.Program   , none(LiltType))
 
 #~# Dependently typed nodes #~#
 
@@ -237,7 +207,7 @@ proc setLambdaReturnTypes(node: ONode) =
             lamb.returnNodeKind = lamb.parent.Definition.id
 
 proc checkTopLevelLambdas(node: ONode) =
-    ## Throws an error if any definitions' body mutated but is not in a lambda
+    ## Throws an error if any definitions' body mutates but is not in a lambda
     ## Throws an error if any top-level lambdas are redundant
     for def in node.descendants.filterOf(Definition):
         let mutates = def.body.mutates
@@ -257,11 +227,10 @@ proc mutates*(node: ONode): bool =
     result = node.scoped2.anyIt(it of Adjoinment or it of outer_ast.Property or it of Extension or it of Result)
 
 proc preprocess*(ast: ONode) =
-    ## Infers the return types of the AST, then sets the return kinds of all Lambdas
+    ## Infers the return types of the AST, then sets the return types of all Lambdas
     inferReturnTypes(ast)
     setLambdaReturnTypes(ast)
 
 proc validateSemantics*(ast: ONode) =
-    ## TODO: Should warn, not error
     ## Throws an error if any mutating definitions' bodies are not lambdas
     checkTopLevelLambdas(ast)
