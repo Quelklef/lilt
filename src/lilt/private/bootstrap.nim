@@ -1,7 +1,7 @@
 
 #[
 The Lilt grammar and parser is written in Lilt.
-The processed used to allow for this is somewhat comparable to compiler bootstrapping.
+This processed used to allow for this is somewhat comparable to compiler bootstrapping.
 
 We started with a parser written in Nim as a straight Lilt AST.
 This could be used as a parser via the Lilt interpreter.
