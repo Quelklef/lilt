@@ -9,9 +9,7 @@ begin, we'll start by creating a BNF-like Lilt specification for JSON, and then 
 actual "parser generator" bits in afterwards.
 
 Let's start with something simple, a JSON :code:`string`. For now, we'll skip implementing
-escapes; :code:`\\` will be handled literally, and :code:`"` will not be allowed in a string.
-
-.. code-block::
+escapes; backslashes will be handled literally, and :code:`"` will not be allowed in a string::
   
   string: '"' *anyNonQuoteCharacter '"'
 
@@ -23,13 +21,11 @@ a literal code (:code:`'"'`) followed by
 0 or more (`*`) of any non-quote character (:code:`anyNonQuoteCharacter`) and then a final, ending
 literal quote (:code:`'"'`).
 
-OK, fancy! Now let's define a number.
-
-.. code-block::
+OK, fancy! Now let's define a number::
 
   number: ?"-" ["0" | +digit] ?["." *digit]
 
-There are a few notable thins about this snippet:
+There are a few notable things about this snippet:
 
 - :code:`"`: In this snippet, double quotes are used around literals
   rather than single quotes. It makes no difference.
@@ -41,9 +37,7 @@ There are a few notable thins about this snippet:
   that matches *any* of the rules. So, :code:`'a' | 'b'` will match
   "a", "b", any nothing else.
 
-Wack. Just for fun, let's also allow the exponent synax:
-
-..code-block::
+Wack. Just for fun, let's also allow the exponent synax::
 
   number: ?"-" ["0" | +digit] ?["." *digit] ?[["e" | "E"] ["+" | "-"] +digit]
 
@@ -52,9 +46,7 @@ sugar we can use! We can enclose many characters in angle brackets
 :code:`<like this>`, which will match any of the contained characters. For
 instance, the :code:`digit` builtin is equivalent to :code:`<1234567890>`.
 
-So, we may rewrite this slightly more tersely as:
-
-..code-block::
+So, we may rewrite this slightly more tersely as::
 
   number: ?"-" ["0" | +digit] ?["." *digit] ?[<eE> <+-> +digit]
 
@@ -80,9 +72,7 @@ Why is this useful? For one, it allows us to create set differences. Some set :c
 would be expressed in Lilt as :code:`!B A`. For instance, we can replace :code:`anyNonQuoteCharacter`
 with :code:`!'"' any`. :code:`any` is a builtin that matches any character.
 
-Now, we can complete our JSON specification (except for string escapes):
-
-..code-block::
+Now, we can complete our JSON specification (except for string escapes)::
 
   value: string | number | object | array | "true" | "false" | "null"
 
@@ -113,9 +103,7 @@ All Nodes are nodes; some nodes are Nodes.
 We represent Lilt nodes in a manner similar to JSON. To exemplify, let's create a node for the function
 call: :code:`printLn(x, y, z)`. We will want a "call" Node, which will have a "target" attribute that
 represents the function reference, as well as a "arguments" attribute which is a list of references.
-Each reference will also be a Node with a "to" attriubte which is just the literal name of the reference:
-
-..code-block::
+Each reference will also be a Node with a "to" attriubte which is just the literal name of the reference::
 
   call {
     target: reference { to: "printLn }
@@ -128,9 +116,7 @@ Each reference will also be a Node with a "to" attriubte which is just the liter
 
 Since this is not formal code, and is just shorthand, commas aren't really needed.
 
-Understand the AST? Great, let's continue. Take another look at the spec so far:
-
-..code-block::
+Understand the AST? Great, let's continue. Take another look at the spec so far::
 
   value: string | number | object | array | "true" | "false" | "null"
 
@@ -169,15 +155,11 @@ that is the name of the rule that defined them, so they will still be distinguis
 Phew, close one. Now, how do we reify our plan?
 
 Named attributes are notated like :code:`someAttribute=rule`, which will set :code:`someAttribute` to
-the value of :code:`rule` on the returned Node. Let's start small and reimplement :code:`number`:
-
-..code-block::
+the value of :code:`rule` on the returned Node. Let's start small and reimplement :code:`number`::
 
   number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?[<eE> <+-> +digit]
 
-Pretty simple! Let's see it in action:
-
-..code-block::
+Pretty simple! Let's see it in action::
 
   number("-4.0") =
     number {
@@ -196,16 +178,12 @@ Pretty simple! Let's see it in action:
   number("14") = number { wholes: "14" }
 
 Hmmm, the "exponent" attribute is kind of ugly. It would be nice to actually pare the exponent as well,
-so let's do that:
-
-..code-block::
+so let's do that::
 
   number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
-Now, this parses nicer:
-
-..code-block::
+Now, this parses nicer::
 
   number("6.022e+23") =
     number {
@@ -225,9 +203,7 @@ Code that will be reviewed at the end of the tutortial
     
 Lists can be created by applying :code:`*` or :code:`?` to a Node-returning rule, so :code:`*number`
 will be a List. However, it can also be created explicitly with :code:`&`. :code:`&` will append a node
-to the resultant list. To exemplify, let's implement `array` next:
-
-..code-block::
+to the resultant list. To exemplify, let's implement `array` next::
 
   array: "[" items=?items "]"
   items: &value *["," &value]
@@ -235,9 +211,7 @@ to the resultant list. To exemplify, let's implement `array` next:
 Since, as we planned before, :code:`value` will return a Node, then each call to :code:`&` will append
 that node to the resultant list of :code:`items`, which will be returned when finished. Great, let's
 see an :code:`array` example! Since we've only defined :code:`number` as well as array, it will
-be an array of numbers
-
-..code-block::
+be an array of number::
 
   array("[1, 2, 3.4, 5.6, 7]") =
     array {
@@ -250,9 +224,7 @@ be an array of numbers
       ]
     }
 
-Great! Knowing :code:`attr=` and :code:`&` actually gives us enough to finish making a real JSON parser:
-
-..code-block::
+Great! Knowing :code:`attr=` and :code:`&` actually gives us enough to finish making a real JSON parser::
 
   value: string | number | object | array | trueLiteral | falseLiteral | nullLiteral
 
@@ -283,9 +255,7 @@ with the type system: :code:`trueLiteral`, :code:`falseLiteral`, :code:`nullLite
 the reason is similar for the rest, but let's look at another one, just for clarity's sake.
 
 Let's say we hate that :code:`items` has to be defined as its own rule and wish we could just inline
-it within :code:`array`. What would happen if we did?
-
-..code-block::
+it within :code:`array`. What would happen if we did::
 
   array: "[" items=?[&value *["," &value]] "]"
 
@@ -294,9 +264,7 @@ Now, this would confuse the type system. Since :code:`[]`s don't introduce a new
 but then :code:`&value` says that :code:`array` will return a *List*!
 
 This can be solved with :code:`{}`s, which are like :code:`[]`s but *do* introduce a new scope
-and are used to create anonymous, inline rules. So a working version would be:
-
-..code-block::
+and are used to create anonymous, inline rules. So a working version would be::
 
   array: "[" items=?{&value *["," &value]} "]"
 
@@ -307,9 +275,7 @@ all nodes contain an attribute which refers to the rule that generated them. Wha
 a node created by an anonymous rule?
 
 Anyway, now we can make the JSON definition more terse. If we inline all the (non-Node) auxiliary functions, it
-would look like:
-
-..code-blocks::
+would look like:::
 
   value: string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}
 
@@ -328,24 +294,18 @@ We didn't inline :code:`numberExp` since it returns a Node.
 We're almost done! We just have to make it handle escapes in strings, and whitespace, and we're done!
 Let's do strings first.
 
-First, let's replace the :code:`string` definition with:
-
-..code-block::
+First, let's replace the :code:`string` definition with::
 
   string: '"' value=*stringChar '"'
 
 Now we just have to define :code:`stringChar`. Well, it's any character besides :code:`"` or :code:`\`, or
-a :code:`\` followed by any of: :code:`"\/bfnrt`, or a :code:`u` and 4 hexadecimal digits. Let's do it!
-
-..code-block::
+a :code:`\` followed by any of: :code:`"\/bfnrt`, or a :code:`u` and 4 hexadecimal digits. Let's do it::
 
   stringChar: [!<"\\> any] | "\\" [</\\bfnrt> | "u" hexDig hexDig hexDig hexDig]
   hexDig: <1234567890ABCDEFabcdef>
 
 Now, :code:`string` will correctly consume :code:`"string \""`. It will NOT interpret the backslack and
-map it to a double quote; the returned text will be :code:`string \"`. Let's include it in the parser:
-
-..code-block::
+map it to a double quote; the returned text will be :code:`string \"`. Let's include it in the parser::
 
   value: string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}
 
@@ -362,9 +322,7 @@ map it to a double quote; the returned text will be :code:`string \"`. Let's inc
   array: "[" items=?{&value *["," &value]} "]"
 
 One final job: Whitespace. Lilt includes a builtin function :code:`_` which consumes 0 or more whitespace
-characters and returns them. It may be *tempting* to implement whitespace for :code:`value` like this:
-
-..code-block::
+characters and returns them. It may be *tempting* to implement whitespace for :code:`value` like this::
 
   value: _ [string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
 
@@ -372,9 +330,7 @@ but that won't work. Why not? The type system will see that :code:`_` returns Co
 :code:`value` return Code *as well*, returning what it's consumed. Instead, we want it to return
 a Node. We can do this with the :code:`#` operator, which is kind of like :code:`return`; it will
 return the notated value. It doesn't return it until the end of the call, though, so the second
-call to :code:`_` will still work, consuming trailing whitespace. The correct code looks like:
-
-..code-block::
+call to :code:`_` will still work, consuming trailing whitespace. The correct code looks like::
 
   value: _ #[string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
 
@@ -382,9 +338,7 @@ Note that since :code:`#` doesn't stop execution, it's not *quite* like :code:`r
 doesn't stop execution, multiple calls to :code:`#` will overwrite each other, the last value is
 the one that will be returned. So for :code:`ex: #"a" #"b"`, :code:`ex("ab") = "b"`.
 
-OK, let's fill in whitespace:
-
-..code-block::
+OK, let's fill in whitespace::
 
   value: _ #[string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
 
@@ -404,7 +358,7 @@ Aaand we're done! A working JSON parser in just 9 lines of code.
 
 Unfortunately, the tutortial is not quite done. One operator has escaped its scope, and that is
 adjoinment, notated by :code:`$`. Rules containing :code:`$` will consume, but not return, most
-consumed code. Only code passed to :code:`$` will be *adjoined* and returned. So, for:
+consumed code. Only code passed to :code:`$` will be *adjoined* and returned. So, for::
 
   ex: "prefix " $"value" " postfix"
 
