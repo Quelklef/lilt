@@ -202,17 +202,17 @@ So far, Code has just been created with literals like :code:`"0"` and operations
 like :code:`*digit`. That will actually be enough for JSON, but there are other ways to create
 Code that will be reviewed at the end of the tutortial
     
-Lists can be created by applying :code:`*` or :code:`+` to a Node-returning rule, so :code:`*number`
+Lists can be created by applying :code:`*` or :code:`?` to a Node-returning rule, so :code:`*number`
 will be a List. However, it can also be created explicitly with :code:`&`. :code:`&` will append a node
-to the resultant list. To exemplify, let's implement :code:`array` next::
+to the resultant list. To exemplify, let's implement `array` next::
 
   array: "[" items=?items "]"
   items: &value *["," &value]
 
 Since, as we planned before, :code:`value` will return a Node, then each call to :code:`&` will append
 that node to the resultant list of :code:`items`, which will be returned when finished. Great, let's
-see an :code:`array` example! Since we've only defined :code:`number` as well as :code:`array`, it will
-be an array of numbers::
+see an :code:`array` example! Since we've only defined :code:`number` as well as array, it will
+be an array of number::
 
   array("[1, 2, 3.4, 5.6, 7]") =
     array {
@@ -252,16 +252,16 @@ make an object with no attributes? I lied. That's not (yet) possible in Lilt, so
 Great! We have a *real, working* JSON parser! And in only 12 lines of code! You'll notice that in
 the transition from grammar to parser, we had to add some auxiliary functions in order to work
 with the type system: :code:`trueLiteral`, :code:`falseLiteral`, :code:`nullLiteral` :code:`numberExp`,
-:code:`pairs`, and :code:`items`. I explained in particular why the *-Literals are needed, and
+:code:`pairs`:, and :code:`items`. I explained in particular why the -Literals are needed, and
 the reason is similar for the rest, but let's look at another one, just for clarity's sake.
 
 Let's say we hate that :code:`items` has to be defined as its own rule and wish we could just inline
-it within :code:`array`. What would happen if we did?::
+it within :code:`array`. What would happen if we did::
 
   array: "[" items=?[&value *["," &value]] "]"
 
-Now, this would confuse the type system. Since :code:`[]`s don't introduce a new scope, :code:`items=`
-says that :code:`array` will return a *Node*,
+Now, this would confuse the type system. Since :code:`[]`s don't introduce a new scope,
+ :code:`items=` says that :code:`array` will return a *Node*,
 but then :code:`&value` says that :code:`array` will return a *List*!
 
 This can be solved with :code:`{}`s, which are like :code:`[]`s but *do* introduce a new scope
@@ -299,13 +299,13 @@ First, let's replace the :code:`string` definition with::
 
   string: '"' value=*stringChar '"'
 
-Now we just have to define :code:`stringChar`. Well, it's any character besides :code:`"` or baclslash, or
-a blackslash followed by any of: :code:`"\/bfnrt`, or a :code:`u` and 4 hexadecimal digits. Let's do it::
+Now we just have to define :code:`stringChar`. Well, it's any character besides :code:`"` or :code:`\`, or
+a :code:`\` followed by any of: :code:`"\/bfnrt`, or a :code:`u` and 4 hexadecimal digits. Let's do it::
 
   stringChar: [!<"\\> any] | "\\" [</\\bfnrt> | "u" hexDig hexDig hexDig hexDig]
   hexDig: <1234567890ABCDEFabcdef>
 
-Now, :code:`string` will correctly consume :code:`"string \""`. It will NOT interpret the backslash and
+Now, :code:`string` will correctly consume :code:`"string \""`. It will NOT interpret the backslack and
 map it to a double quote; the returned text will be :code:`string \"`. Let's include it in the parser::
 
   value: string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}
@@ -334,8 +334,6 @@ return the notated value. It doesn't return it until the end of the call, though
 call to :code:`_` will still work, consuming trailing whitespace. The correct code looks like::
 
   value: _ #[string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
-
-(Excuse the misplaced italics)
 
 Note that since :code:`#` doesn't stop execution, it's not *quite* like :code:`return`. Since it
 doesn't stop execution, multiple calls to :code:`#` will overwrite each other, the last value is

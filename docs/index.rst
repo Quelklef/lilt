@@ -7,7 +7,7 @@ Lilt docs
    :caption: Contents:
 
    overview
-   tutortial
+   tutorial
    cheatsheet
    legislators
    examples
