@@ -10,6 +10,6 @@ Lilt specifications look very similar to `Backus-Naur form`_, but have extra syn
 generator rather than just a grammar specification.
 
 Learning Lilt
-=============
+-------------
 
 To learn Lilt, it's recommended to start with the tutortial.

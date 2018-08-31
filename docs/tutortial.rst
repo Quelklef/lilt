@@ -8,7 +8,7 @@ Let's look at how one would parse `JSON`_ using Lilt. Instead of creating a pars
 begin, we'll start by creating a BNF-like Lilt specification for JSON, and then adding the
 actual "parser generator" bits in afterwards.
 
-Let's start with something simple, a JSON :code:`string`:. For now, we'll skip implementing
+Let's start with something simple, a JSON :code:`string`. For now, we'll skip implementing
 escapes; :code:`\` will be handled literally, and :code:`"` will not be allowed in a string.
 
 .. code-block::
