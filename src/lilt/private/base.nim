@@ -71,6 +71,10 @@ type
     ]#
     Parser* = proc(text: string): LiltValue
 
+proc `[]`*(node: Node, key: string): LiltValue =
+  ## Get the properties of a lilt node
+  return node.properties[key]
+
 proc `==`*(item, other: LiltValue): bool =
     if item.kind != other.kind:
         return false

@@ -32,6 +32,11 @@ The returned value may be text, a node, or a list of nodes. This is encoded in t
         kind*: string  # name of the rule that this node was parsed by
         properties*: TableRef[string, LiltValue]  # properties of the node
 
+Instead of writing :code:`node.properties[key]`, one can just write :code:`node[key]` via the following proc::
+
+    proc `[]`(node: Node, key: string): LiltValue =
+      return node.properties[key]
+
 In order to create parsers, one should use the included :code:`makeParsers` proc, which looks like::
 
     proc makeParsers*(code: string): Table[string, Parser]
