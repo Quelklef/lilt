@@ -159,7 +159,7 @@ Phew, close one. Now, how do we reify our plan?
 Named attributes are notated like :code:`someAttribute=rule`, which will set :code:`someAttribute` to
 the value of :code:`rule` on the returned Node. Let's start small and reimplement :code:`number`::
 
-  number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?[<eE> <+-> +digit]
+  number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] exponent=?[<eE> <+-> +digit]
 
 Pretty simple! Let's see it in action::
 
@@ -182,7 +182,7 @@ Pretty simple! Let's see it in action::
 Hmmm, the "exponent" attribute is kind of ugly. It would be nice to actually parse the exponent as well,
 so let's do that::
 
-  number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?numberExp
+  number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
 Now, this parses nicer::
@@ -236,7 +236,7 @@ Knowing :code:`attr=` and :code:`&` actually gives us enough to finish making a 
 
   string: '"' value=*[!'"' any] '"'
 
-  number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?numberExp
+  number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
   object: "{" pairs=?pairs "}"
@@ -278,11 +278,15 @@ a node created by an anonymous rule?
 Anyway, now we can make the JSON definition more terse. If we inline all the (non-Node) auxiliary functions, it
 would look like:::
 
-  value: string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}
+  value: string | number | object | array | trueLiteral | falseLiteral | nullLiteral
+
+  trueLiteral: _="" "true"
+  falseLiteral: _="" "false"
+  nullLiteral: _="" "null"
 
   string: '"' value=*[!'"' any] '"'
 
-  number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?numberExp
+  number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
   object: "{" pairs=?{&pair *["," &pair]} "}"
@@ -307,13 +311,17 @@ a blackslash followed by any of: :code:`"\/bfnrt`, or a :code:`u` and 4 hexadeci
 Now, :code:`string` will correctly consume :code:`"string \""`. It will NOT interpret the backslash and
 map it to a double quote; the returned text will be :code:`string \"`. Let's include it in the parser::
 
-  value: string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}
+  value: string | number | object | array | trueLiteral | falseLiteral | nullLiteral
+
+  trueLiteral: _="" "true"
+  falseLiteral: _="" "false"
+  nullLiteral: _="" "null"
 
   string: '"' value=*stringChar '"'
   stringChar: [!<"\\> any] | "\\" [</\\bfnrt> | "u" hexDig hexDig hexDig hexDig]
   hexDig: <1234567890ABCDEFabcdef>
 
-  number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?numberExp
+  number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
   object: "{" pairs=?{&pair *["," &pair]} "}"
@@ -324,7 +332,7 @@ map it to a double quote; the returned text will be :code:`string \"`. Let's inc
 One final job: Whitespace. Lilt includes a builtin function :code:`_` which consumes 0 or more whitespace
 characters and returns them. It may be *tempting* to implement whitespace for :code:`value` like this::
 
-  value: _ [string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
+  value: _ [string | number | object | array | trueLiteral | falseLiteral | nullLiteral] _
 
 but that won't work. Why not? The type system will see that :code:`_` returns Code and will make
 :code:`value` return Code *as well*, returning what it's consumed. Instead, we want it to return
@@ -332,7 +340,7 @@ a Node. We can do this with the :code:`#` operator, which is kind of like :code:
 return the notated value. It doesn't return it until the end of the call, though, so the second
 call to :code:`_` will still work, consuming trailing whitespace. The correct code looks like::
 
-  value: _ #[string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
+  value: _ #[string | number | object | array | trueLiteral | falseLiteral | nullLiteral] _
 
 (Excuse the misplaced italics)
 
@@ -342,13 +350,17 @@ the one that will be returned. So for :code:`ex: #"a" #"b"`, :code:`ex("ab") = "
 
 OK, let's fill in whitespace::
 
-  value: _ #[string | number | object | array | {_="" "true"} | {_="" "false"} | {_="" "null"}] _
+  value: _ #[string | number | object | array | trueLiteral | falseLiteral | nullLiteral] _
+
+  trueLiteral: _="" "true"
+  falseLiteral: _="" "false"
+  nullLiteral: _="" "null"
 
   string: '"' value=*stringChar '"'
   stringChar: [!<"\\> any] | "\\" [</\\bfnrt> | "u" hexDig hexDig hexDig hexDig]
   hexDig: <1234567890ABCDEFabcdef>
 
-  number: negative="-" wholes=["0" | +digit] decimals=?["." *digit] exponent=?numberExp
+  number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
   object: "{" pairs=?{&pair *["," &pair]} "}"
