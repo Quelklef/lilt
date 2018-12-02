@@ -80,10 +80,10 @@ Now, we can complete our JSON specification (except for string escapes)::
 
   number: ?"-" ["0" | +digit] ?["." *digit] ?[<eE> <+-> +digit]
 
-  object: "{" ?[pair *["," pair]] "}"
+  object: "{" _ ?[pair *["," pair]] _ "}"
   pair: string ":" value
 
-  array: "[" ?[value *["," value]] "]"
+  array: "[" _ ?[value *["," value]] _ "]"
 
 Fancy stuff. Look at that!
 
@@ -124,10 +124,10 @@ Now let's design an AST for our spec. Take another look at the spec so far::
 
   number: ?"-" ["0" | +digit] ?["." *digit] ?[<eE> <+-> +digit]
 
-  object: "{" ?[pair *["," pair]] "}"
+  object: "{" _ ?[pair *["," pair]] _ "}"
   pair: string ":" value
 
-  array: "[" ?[value *["," value]] "]"
+  array: "[" _ ?[value *["," value]] _ "]"
 
 Let's consider how we want to generate the AST.
 
@@ -207,7 +207,7 @@ Lists can be created by applying :code:`*` or :code:`+` to a Node-returning rule
 will be a List. However, it can also be created explicitly with :code:`&`. :code:`&` will append a node
 to the resultant list. To exemplify, let's implement :code:`array` next::
 
-  array: "[" items=?items "]"
+  array: "[" _ items=?items _ "]"
   items: &value *["," &value]
 
 Since, as we planned before, :code:`value` will return a Node, then each call to :code:`&` will append
@@ -239,11 +239,11 @@ Knowing :code:`attr=` and :code:`&` actually gives us enough to finish making a 
   number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
-  object: "{" pairs=?pairs "}"
+  object: "{" _ pairs=?pairs _ "}"
   pairs: &pair *["," &pair]
   pair: key=string ":" value=value
 
-  array: "[" items=?items "]"
+  array: "[" _ items=?items _ "]"
   items: &value *["," &value]
 
 Real quick: Remember when I said :code:`trueLiteral`, :code:`falseLiteral`, and :code:`nullLiteral` would
@@ -258,7 +258,7 @@ with the type system: :code:`trueLiteral`, :code:`falseLiteral`, :code:`nullLite
 Let's say we hate that :code:`items` has to be defined as its own rule and wish we could just inline
 it within :code:`array`. What would happen if we did?::
 
-  array: "[" items=?[&value *["," &value]] "]"
+  array: "[" _ items=?[&value *["," &value]] _ "]"
 
 Now, this would confuse the type system. Since :code:`[]` doesn't introduce a new scope, :code:`items=`
 says that :code:`array` will return a *Node*,
@@ -267,7 +267,7 @@ but then :code:`&value` says that :code:`array` will return a *List*!
 This can be solved with :code:`{}`, which is like :code:`[]` but *does* introduce a new scope
 and are used to create anonymous, inline rules. So a working version would be::
 
-  array: "[" items=?{&value *["," &value]} "]"
+  array: "[" _ items=?{&value *["," &value]} _ "]"
 
 Now :code:`&value` affects the *inner* rule rather than :code:`array`, and everything is hunky-dory.
 
@@ -289,10 +289,10 @@ would look like:::
   number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
-  object: "{" pairs=?{&pair *["," &pair]} "}"
+  object: "{" _ pairs=?{&pair *["," &pair]} _ "}"
   pair: key=string ":" value=value
 
-  array: "[" items=?{&value *["," &value]} "]"
+  array: "[" _ items=?{&value *["," &value]} _ "]"
 
 We didn't inline :code:`numberExp` since it returns a Node.
 
@@ -324,10 +324,10 @@ map it to a double quote; the returned text will be :code:`string \"`. Let's inc
   number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
-  object: "{" pairs=?{&pair *["," &pair]} "}"
+  object: "{" _ pairs=?{&pair *["," &pair]} _ "}"
   pair: key=string ":" value=value
 
-  array: "[" items=?{&value *["," &value]} "]"
+  array: "[" _ items=?{&value *["," &value]} _ "]"
 
 One final job: Whitespace. Lilt includes a builtin function :code:`_` which consumes 0 or more whitespace
 characters and returns them. It may be *tempting* to implement whitespace for :code:`value` like this::
@@ -363,10 +363,10 @@ OK, let's fill in whitespace::
   number: ?negative="-" wholes=["0" | +digit] ?["." decimals=*digit] ?exponent=numberExp
   numberExp: <eE> sign=<+-> digits=+digit
 
-  object: "{" pairs=?{&pair *["," &pair]} "}"
+  object: "{" _ pairs=?{&pair *["," &pair]} _ "}"
   pair: _ key=string _ ":" _ value=value _
 
-  array: "[" items=?{&value *["," &value]} "]"
+  array: "[" _ items=?{&value *["," &value]} _ "]"
 
 Aaand we're done! A working JSON parser in just 9 lines of code.
 
