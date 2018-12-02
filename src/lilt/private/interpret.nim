@@ -243,23 +243,21 @@ method translate(o: Optional, context: LiltContext): Rule =
     let innerRule = translate(o.inner, context)
     var rule: proc(head: int, text: string, lambdaState: LiltValue): RuleVal
 
-    if o.inner.returnType== none(LiltType):
-        rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
-            return innerRule(head, text, lambdaState).hls
+    rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
+        try:
+            return innerRule(head, text, lambdaState)
+        except RuleError:
+            if o.returnType.isNone:
+              return (head, lambdaState)
 
-    else:
-        rule = proc(head: int, text: string, lambdaState: LiltValue): RuleVal =
-            try:
-                return innerRule(head, text, lambdaState)
-            except RuleError:
-                case o.returnType.get:
-                of ltList:
-                    return (head, newSeq[inner_ast.Node](), lambdaState)
-                of ltText:
-                    return (head, "", lambdaState)
-                else:
-                    # Returning empty node doesn't make sense since nodes require implicit source attribute
-                    assert false
+            case o.returnType.get:
+            of ltList:
+                return (head, newSeq[inner_ast.Node](), lambdaState)
+            of ltText:
+                return (head, "", lambdaState)
+            else:
+                # Returning empty node doesn't make sense since nodes require implicit source attribute
+                assert false
 
     return debugWrap(rule, o)
 
