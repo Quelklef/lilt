@@ -16,9 +16,11 @@ export base.LiltValue
 export base.Node
 export base.Parser
 export base.RuleError
-
 export base.`==`
-export base.`[]`
+
+import lilt/private/inner_ast
+export inner_ast.`[]`
+export inner_ast.`$`
 
 import logging
 var log = newConsoleLogger(fmtStr="[$datetime] $levelname :: ")
