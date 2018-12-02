@@ -138,10 +138,10 @@ proc liltUnescape*(s: string): string =
                 if next == 'x':
                     let hex1 = s{head + 2}
                     if hex1 == '\0':
-                        raise newException(ValueError, "\xHH requires 2 digits, got 0.")
+                        raise newException(ValueError, "\\xHH requires 2 digits, got 0.")
                     let hex2 = s{head + 3}
                     if hex2 == '\0':
-                        raise newException(ValueError, "\xHH requires 2 digits, got 1.")
+                        raise newException(ValueError, "\\xHH requires 2 digits, got 1.")
 
                     let value = unescape(s[head .. head + 3], prefix="", suffix="")
                     result &= value

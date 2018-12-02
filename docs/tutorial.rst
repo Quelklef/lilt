@@ -37,7 +37,7 @@ There are a few notable things about this snippet:
   that matches *any* of the rules. So, :code:`'a' | 'b'` will match
   "a", "b", any nothing else.
 
-Wack. Just for fun, let's also allow the exponent synax::
+Just for fun, let's also allow the exponent synax::
 
   number: ?"-" ["0" | +digit] ?["." *digit] ?[["e" | "E"] ["+" | "-"] +digit]
 
@@ -57,16 +57,15 @@ It's very easy to look at these definitions as predicates; it's easy to think of
 as a function that takes some code and returns whether or not it matches the specification (i.e.
 looks like a number). However, it's important to *not* do this in order to better grok how Lilt
 works. Instead, think of :code:`number` (and all other rules) as a function that takes some
-code, tries to match it to the specification, and returns the code (or, more precisely, the
-consumed prefix of the code) if it matches. If it *doesn't*
+code, tries to match it to the specification, and returns the concused code if it matches. If it *doesn't*
 match, it will fail, and signal to the caller that it has failed.
-So, :code:`number("123") = "123"`.
+So, :code:`number("123") = "123"` and :code:`number("123 abc") = "123"` and :code:`number("x")` fails.
 
-Got that? Great. Now it's time to revisit :code:`anyNonQuoteCharacter`, which we left undefined
+Now it's time to revisit :code:`anyNonQuoteCharacter`, which we left undefined
 before but can now think about since we've got our conception all fixed up.
 
 In order to define this, We introduce the :code:`!` operator, called the guard operator. The
-guard operator will fail if and only if the contained rule fails. So :code:`!"2"` fails ONLY
+guard operator will fail if and only if the contained rule *doesn't* fail. So :code:`!"2"` fails ONLY
 on "2", and :code:`!digit` fails on any digit.
 
 Why is this useful? It allows us to create set differences. Some set :code:`A - B`
@@ -96,7 +95,7 @@ In Lilt, an AST node is one of 3 things:
 
 - Code (a string)
 - List (a list of Nodes)
-- Node (an object with named properties that map to other AST nodes)
+- Node (an object with properties that are other AST nodes)
 
 Note that "node" and "Node" are subtly different here, since a "node" may be Code, a List, or a Node.
 All Nodes are nodes; some nodes are Nodes.
@@ -107,7 +106,7 @@ represents the function reference as well as a "arguments" attribute which is a 
 Each reference will also be a Node with a "to" attriubte which is just the literal name of the reference::
 
   call {
-    target: reference { to: "printLn }
+    target: reference { to: "printLn" }
     arguments: [
       reference { to: "x" }
       reference { to: "y" }
@@ -117,7 +116,7 @@ Each reference will also be a Node with a "to" attriubte which is just the liter
 
 Since this is not formal code, and is just shorthand, commas aren't really needed.
 
-Understand the AST? Great, let's continue. Take another look at the spec so far::
+Now let's design an AST for our spec. Take another look at the spec so far::
 
   value: string | number | object | array | "true" | "false" | "null"
 
@@ -130,13 +129,14 @@ Understand the AST? Great, let's continue. Take another look at the spec so far:
 
   array: "[" ?[value *["," value]] "]"
 
-Now let's consider how we want to generate the AST.
+Let's consider how we want to generate the AST.
 
 :code:`string` should probably be a Node with a "value" attribute containing the code
 of the string.
 
-:code:`number` should probably be a Node with a "wholes" attribute containing the whole
-numbers. It may also have a "digit" attribute and an "exponent" attribute.
+:code:`number` should probably be a Node with a "wholes" attribute containing the digits before
+the decimal point. It may also have a "digit" attribute containing the digits after the decimal point
+and an "exponent" attribute containing the digits after an "e" or "E".
 
 :code:`object` should be a Node with a "pairs" attribute, a List of pairs. Each :code:`pair` should
 be a Node with a "key" attriubte and a "value" attribute.
@@ -144,14 +144,15 @@ be a Node with a "key" attriubte and a "value" attribute.
 Finally, :code:`array` should be a node with an "items" attribute, a list of Nodes of the contained
 values.
 
-Great, a plan! But, hmm, there's an issue. :code:`string`, :code:`number`, :code:`object`, and :code:`array`
+Great! But, there's an issue. :code:`string`, :code:`number`, :code:`object`, and :code:`array`
 will all evaluate to *Nodes*, but :code:`"true"`, :code:`"false"`, and :code:`"null"` will all
-evaluate to *Code*. Since Lilt rules must be homogenous (i.e. return one and only one type), this isn't
+evaluate to *Code*. This means that :code:`value` cannot certainly evaluate to a *Node* nor
+certainly evaluate to some *Code*. Since Lilt rules must be homogenous (i.e. return one and only one type), this isn't
 allowed. To fix it, we need to somehow return a Node for the literals as well.
 
 We'll create :code:`trueLiteral`, :code:`falseLiteral`, and :code:`nullLiteral` rules which will do that.
-They will take the code and return a Node which has *no* attriubutes. Lilt Nodes have an implicit attribute
-that is the name of the rule that defined them, so they will still be distinguishable in the client code.
+They will return a Node which has *no* attriubutes. Lilt Nodes are implicitely given an attribute
+that is the name of the rule that defined them, so these blank nodes will still be distinguishable.
 
 Phew, close one. Now, how do we reify our plan?
 
@@ -196,11 +197,11 @@ Now, this parses nicer::
       }
     }
 
-Great! So that's how we create nodes. We'll also need to be able to create Lists and Code as well.
+So that's how we create nodes. We'll also need to be able to create Lists and Code as well.
 
 So far, Code has just been created with literals like :code:`"0"` and operations on literals
 like :code:`*digit`. That will actually be enough for JSON, but there are other ways to create
-Code that will be reviewed at the end of the tutortial
+Code that will be reviewed at the end of the tutorial
     
 Lists can be created by applying :code:`*` or :code:`+` to a Node-returning rule, so :code:`*number`
 will be a List. However, it can also be created explicitly with :code:`&`. :code:`&` will append a node
@@ -210,7 +211,7 @@ to the resultant list. To exemplify, let's implement :code:`array` next::
   items: &value *["," &value]
 
 Since, as we planned before, :code:`value` will return a Node, then each call to :code:`&` will append
-that node to the resultant list of :code:`items`, which will be returned when finished. Great, let's
+that node to the resultant list of :code:`items`, which will be returned when finished. let's
 see an :code:`array` example! Since we've only defined :code:`number` as well as :code:`array`, it will
 be an array of numbers::
 
@@ -225,7 +226,7 @@ be an array of numbers::
       ]
     }
 
-Great! Knowing :code:`attr=` and :code:`&` actually gives us enough to finish making a real JSON parser::
+Knowing :code:`attr=` and :code:`&` actually gives us enough to finish making a real JSON parser::
 
   value: string | number | object | array | trueLiteral | falseLiteral | nullLiteral
 
@@ -252,19 +253,18 @@ make an object with no attributes? I lied. That's not (yet) possible in Lilt, so
 Great! We have a *real, working* JSON parser! And in only 12 lines of code! You'll notice that in
 the transition from grammar to parser, we had to add some auxiliary functions in order to work
 with the type system: :code:`trueLiteral`, :code:`falseLiteral`, :code:`nullLiteral` :code:`numberExp`,
-:code:`pairs`, and :code:`items`. I explained in particular why the *-Literals are needed, and
-the reason is similar for the rest, but let's look at another one, just for clarity's sake.
+:code:`pairs`, and :code:`items`. But perhaps we don't want these auxiliary functions?
 
 Let's say we hate that :code:`items` has to be defined as its own rule and wish we could just inline
 it within :code:`array`. What would happen if we did?::
 
   array: "[" items=?[&value *["," &value]] "]"
 
-Now, this would confuse the type system. Since :code:`[]`s don't introduce a new scope, :code:`items=`
+Now, this would confuse the type system. Since :code:`[]` doesn't introduce a new scope, :code:`items=`
 says that :code:`array` will return a *Node*,
 but then :code:`&value` says that :code:`array` will return a *List*!
 
-This can be solved with :code:`{}`s, which are like :code:`[]`s but *do* introduce a new scope
+This can be solved with :code:`{}`, which is like :code:`[]` but *does* introduce a new scope
 and are used to create anonymous, inline rules. So a working version would be::
 
   array: "[" items=?{&value *["," &value]} "]"
@@ -292,8 +292,7 @@ would look like:::
 
 We didn't inline :code:`numberExp` since it returns a Node.
 
-We're almost done! We just have to make it handle escapes in strings, and whitespace, and we're done!
-Let's do strings first.
+We're almost done! We just have to make it handle escapes in strings, and whitespace. Let's do strings first.
 
 First, let's replace the :code:`string` definition with::
 
@@ -359,7 +358,7 @@ OK, let's fill in whitespace::
 
 Aaand we're done! A working JSON parser in just 9 lines of code.
 
-Unfortunately, the tutortial is not quite done. One operator has escaped its scope, and that is
+Unfortunately, the tutorial is not quite done. One operator has escaped its scope, and that is
 adjoinment, notated by :code:`$`. Rules containing :code:`$` will consume, but not return, most
 consumed code. Only code passed to :code:`$` will be *adjoined* and returned. So, for::
 
@@ -369,3 +368,6 @@ consumed code. Only code passed to :code:`$` will be *adjoined* and returned. So
 
 The final bit to learn is the comment. Line comments start with :code:`/` and continue to the end
 of the line, and block and inline comments look :code:`((like this))`.
+
+Actually using this in Nim is not too difficult and is covered in `usage <usage.html>`.
+
