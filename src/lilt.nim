@@ -11,10 +11,13 @@ import lilt/private/types
 import lilt/private/interpret
 import lilt/private/hints
 
-export base.Parser
-export base.LiltValue
 export base.LiltType
+export base.LiltValue
+export base.Node
+export base.Parser
 export base.RuleError
+
+export base.`==`
 
 import logging
 var log = newConsoleLogger(fmtStr="[$datetime] $levelname :: ")

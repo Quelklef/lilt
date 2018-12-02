@@ -258,6 +258,7 @@ method translate(o: Optional, context: LiltContext): Rule =
                 of ltText:
                     return (head, "", lambdaState)
                 else:
+                    # Returning empty node doesn't make sense since nodes require implicit source attribute
                     assert false
 
     return debugWrap(rule, o)

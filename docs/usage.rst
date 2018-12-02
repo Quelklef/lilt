@@ -12,7 +12,7 @@ We'll start with the bread and butter parser type::
 
 A parser accepts some text and returns a parsed *value*. Alternatively, it may throw a :code:`RuleError`, which just says that the text didn't match the parser.
 
-The returned value may be text, a node, or a list of nodes. This is encoded in the next two types::
+The returned value may be text, a node, or a list of nodes. This is encoded in the next three types::
 
     LiltType* = enum
         ltText
@@ -27,6 +27,10 @@ The returned value may be text, a node, or a list of nodes. This is encoded in t
             node*: Node
         of ltList:
             list*: seq[Node]
+
+    Node* = object
+        kind*: string  # name of the rule that this node was parsed by
+        properties*: TableRef[string, LiltValue]  # properties of the node
 
 In order to create parsers, one should use the included :code:`makeParsers` proc, which looks like::
 

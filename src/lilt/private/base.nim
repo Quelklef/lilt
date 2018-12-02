@@ -71,7 +71,7 @@ type
     ]#
     Parser* = proc(text: string): LiltValue
 
-proc `==`(item, other: LiltValue): bool =
+proc `==`*(item, other: LiltValue): bool =
     if item.kind != other.kind:
         return false
 
